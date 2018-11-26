@@ -5,7 +5,8 @@
 #include <xs1.h>
 #include <stdio.h>
 #include "pgmIO.h"
-#include "i2c.h"
+//#include "i2c.h"
+#include "../lib_i2c/api/i2c.h"
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
@@ -26,7 +27,9 @@ port p_sda = XS1_PORT_1F;
 #define FXOS8700EQ_OUT_Z_MSB 0x5
 #define FXOS8700EQ_OUT_Z_LSB 0x6
 
-// check to see if version control works
+// Function prototypes
+int noOfLiveNeighbours(char image[16][16], int i, int j);
+
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -35,21 +38,26 @@ port p_sda = XS1_PORT_1F;
 /////////////////////////////////////////////////////////////////////////////////////////
 int gameOfLifeLogic(char image[16][16]) {
     // so it is array[row][[column]]
+    int l_neighbours;
     for (int i=0; i<16; i++) {
         for (int j=0; j<16; j++){
+            //find no of live neighbours
+            l_neighbours = noOfLiveNeighbours(image[i][j], i , j);
+
             if (image[i][j] == 0xFF) { //cell is live
+
                 //any live cell with fewer than two live neighbours dies
-                if ( noOfLiveNeighbours(image[i][j])<2 ) {
+                if ( noOfLiveNeighbours(image[i][j], i , j)<2 ) {
                     //death
                     return 0;
                 }
                 //any live cell with two or three live neighbours is unaffected
-                else if (( noOfLiveNeighbours(image[i][j])==2 )||( noOfLiveNeighbours(image[i][j])==3 )) {
+                else if (( noOfLiveNeighbours(image[i][j], i, j)==2 )||( noOfLiveNeighbours(image[i][j], i, j)==3 )) {
                     //it lives
                     return image[i][j];
                 }
                 //any live cell with more than three live neighbours dies
-                else if ( noOfLiveNeighbours(image[i][j])>3 ) {
+                else if ( noOfLiveNeighbours(image[i][j], i, j)>3 ) {
                     //more death
                     return 0;
                 }
@@ -57,7 +65,7 @@ int gameOfLifeLogic(char image[16][16]) {
 
             else if (image[i][j] == 0) { //cells are dead
                 //any dead cell with exactly three live neighbours becomes alive
-                if ( noOfLiveNeighbours(image[i][j])==3 ) {
+                if ( noOfLiveNeighbours(image[i][j], i, j)==3 ) {
                     //is alive
                     return (uchar)0xFF;
                 }
@@ -72,7 +80,7 @@ int gameOfLifeLogic(char image[16][16]) {
     }
 }
 
-int noOfLiveNeighbours(char image[16][16]) {
+int noOfLiveNeighbours(char image[16][16], int i, int j) {
     int live_n;
     //right side
     if (image[i][j+1]==0xFF)
@@ -151,6 +159,7 @@ void DataInStream(char infname[], chanend c_out)
 void distributor(chanend c_in, chanend c_out, chanend fromAcc)
 {
   uchar val;
+  uchar new_val;
   char image[16][16];
 
   //Starting up and wait for tilting of the xCore-200 Explorer
@@ -166,7 +175,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
       c_in :> val;                    //read the pixel value
        image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
-      new_val = gameOfLifeLogic(image[y][x]);
+       new_val = gameOfLifeLogic(image[y][x]);
       c_out <: (uchar)new_val;         //send some modified pixel out (we should move this somewhere else)
     }
   }
