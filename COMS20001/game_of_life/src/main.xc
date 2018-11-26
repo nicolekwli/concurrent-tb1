@@ -26,6 +26,7 @@ port p_sda = XS1_PORT_1F;
 #define FXOS8700EQ_OUT_Z_MSB 0x5
 #define FXOS8700EQ_OUT_Z_LSB 0x6
 
+// check to see if version control works
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
