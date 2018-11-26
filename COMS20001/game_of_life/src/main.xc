@@ -32,23 +32,77 @@ port p_sda = XS1_PORT_1F;
 // The Logic of the Game of Life Game Thing
 //
 /////////////////////////////////////////////////////////////////////////////////////////
-void gameOfLifeLogic(char image[16][16]) {
-
+int gameOfLifeLogic(char image[16][16]) {
+    // so it is array[row][[column]]
     for (int i=0; i<16; i++) {
         for (int j=0; j<16; j++){
-            if (image[i][j] == 255) {
-                // printf( "%d \n", image[i][j] );
+            if (image[i][j] == 0xFF) { //cell is live
+                //any live cell with fewer than two live neighbours dies
+                if ( noOfLiveNeighbours(image[i][j])<2 ) {
+                    //death
+                    return 0;
+                }
+                //any live cell with two or three live neighbours is unaffected
+                else if (( noOfLiveNeighbours(image[i][j])==2 )||( noOfLiveNeighbours(image[i][j])==3 )) {
+                    //it lives
+                    return image[i][j];
+                }
+                //any live cell with more than three live neighbours dies
+                else if ( noOfLiveNeighbours(image[i][j])>3 ) {
+                    //more death
+                    return 0;
+                }
+            }   
+
+            else if (image[i][j] == 0) { //cells are dead
+                //any dead cell with exactly three live neighbours becomes alive
+                if ( noOfLiveNeighbours(image[i][j])==3 ) {
+                    //is alive
+                    return (uchar)0xFF;
+                }
+                else {
+                    //remains the same
+                    return image[i][j];
+                }
             }
-
-
-            //printf( "hi: -%4.1d ", image[i][j] );
-
-            //any live cell with fewer than two live neighbours dies
-            //any live cell with two or three live neighbours is unaffected
-            //any live cell with more than three live neighbours dies
-            //any dead cell with exactly three live neighbours becomes alive
+            // printf( "%d \n", image[i][j] );
+            //printf( "hi: -%4.1d ", image[i][j] );            
         }
     }
+}
+
+int noOfLiveNeighbours(char image[16][16]) {
+    int live_n;
+    //right side
+    if (image[i][j+1]==0xFF)
+        live_n++;
+    //left side
+    else  if (image[i][j-1]==0xFF)
+        live_n++;
+    //top
+     else  if (image[i-1][j]==0xFF)
+        live_n++;
+    //bottom
+     else  if (image[i+1][j]==0xFF)
+        live_n++;
+    //top right
+     else  if (image[i-1][j+1]==0xFF)
+       live_n++;
+    //top left
+     else  if (image[i-1][j-1]==0xFF)
+        live_n++;
+    //bottom right
+     else  if (image[i+1][j+1]==0xFF)
+        live_n++;
+    //bottom left
+     else  if (image[i+1][j-1]==0xFF)
+        live_n++;
+    //elseeee
+    else {
+        live_n+=0;
+    }
+
+    return live_n;
 }
 
 
@@ -110,9 +164,9 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
   for( int y = 0; y < IMHT; y++ ) {   //go through all lines
     for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
       c_in :> val;                    //read the pixel value
-      image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
-
-      c_out <: (uchar)( val ^ 0xFF );          //send some modified pixel out (we should move this somewhere else)
+       image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
+      new_val = gameOfLifeLogic(image[y][x]);
+      c_out <: (uchar)new_val;         //send some modified pixel out (we should move this somewhere else)
     }
   }
   printf( "\nOne processing round completed...\n" );
