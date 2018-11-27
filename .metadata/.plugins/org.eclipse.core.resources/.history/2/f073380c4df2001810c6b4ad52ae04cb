@@ -27,6 +27,10 @@ port p_sda = XS1_PORT_1F;
 #define FXOS8700EQ_OUT_Z_MSB 0x5
 #define FXOS8700EQ_OUT_Z_LSB 0x6
 
+// Function prototypes
+int noOfLiveNeighbours(char image[16][16], int i, int j);
+
+
 /////////////////////////////////////////////////////////////////////////////////////////
 //
 // The Logic of the Game of Life Game Thing
@@ -82,7 +86,6 @@ int gameOfLifeLogic(char image[16][16], int i, int j) {
     return 0; //this im not sure about
 }
 
-// NEED TO IMPLEMENT SIDE OF BOARD
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
     int live_n;
     //right side
@@ -178,21 +181,14 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
   //This just inverts every pixel, but you should
   //change the image according to the "Game of Life"
   printf( "Processing...\n" );
-  // Store whatever the image is in a 2D array
-    for( int y = 0; y < IMHT; y++ ) {   //go through all lines
-      for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-        c_in :> val;                    //read the pixel value
-         image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
-      }
+  for( int y = 0; y < IMHT; y++ ) {   //go through all lines
+    for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
+      c_in :> val;                    //read the pixel value
+       image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
+      // new_val = gameOfLifeLogic(image, x, y);
+      c_out <: (uchar)new_val;         //send some modified pixel out (we should move this somewhere else)
     }
-
-    for( int y = 0; y < IMHT; y++ ) {   //go through all lines
-      for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-        new_val = gameOfLifeLogic(image, x, y);
-
-        c_out <: (uchar)new_val;
-      }
-    }
+  }
 
   //send stuff to diff workers
   while(1) {

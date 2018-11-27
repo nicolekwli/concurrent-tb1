@@ -82,7 +82,6 @@ int gameOfLifeLogic(char image[16][16], int i, int j) {
     return 0; //this im not sure about
 }
 
-// NEED TO IMPLEMENT SIDE OF BOARD
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
     int live_n;
     //right side
