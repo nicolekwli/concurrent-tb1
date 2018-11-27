@@ -39,6 +39,10 @@ int noOfLiveNeighbours(char image[16][16], int i, int j);
 int gameOfLifeLogic(char image[16][16], int i, int j) {
     // just fyi for me: it is array[row][[column]]
 
+    int d=0;
+    printf( "hi: its here %d ", d++ );
+
+
    // for (int i=0; i<16; i++) {
        // for (int j=0; j<16; j++){
             //find no of live neighbours
@@ -109,11 +113,10 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
      else  if (image[i+1][j-1]==0xFF)
         live_n++;
     //elseeee
-    else {
+     else {
         live_n+=0;
-    }
-
-    return live_n;
+     }
+  return live_n;
 }
 
 
@@ -166,7 +169,7 @@ void DataInStream(char infname[], chanend c_out)
 void distributor(chanend c_in, chanend c_out, chanend fromAcc)
 {
   uchar val;
-  uchar new_val;
+  uchar new_val=0xFF;
   char image[16][16];
 
   //Starting up and wait for tilting of the xCore-200 Explorer
@@ -182,10 +185,29 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
       c_in :> val;                    //read the pixel value
        image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
-       new_val = gameOfLifeLogic(image, x, y);
+      // new_val = gameOfLifeLogic(image, x, y);
       c_out <: (uchar)new_val;         //send some modified pixel out (we should move this somewhere else)
     }
   }
+
+  //send stuff to diff workers
+  while(1) {
+      select {
+          //case buttons
+          //case i think this is for LEDs
+          case worker :>
+      }
+  }
+
+
+
+
+
+
+
+
+
+
   printf( "\nOne processing round completed...\n" );
  // gameOfLifeLogic(image); //dont need this here tbh
 }
