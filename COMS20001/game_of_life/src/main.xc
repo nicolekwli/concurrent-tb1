@@ -36,48 +36,50 @@ int noOfLiveNeighbours(char image[16][16], int i, int j);
 // The Logic of the Game of Life Game Thing
 //
 /////////////////////////////////////////////////////////////////////////////////////////
-int gameOfLifeLogic(char image[16][16]) {
-    // so it is array[row][[column]]
-    int l_neighbours;
-    for (int i=0; i<16; i++) {
-        for (int j=0; j<16; j++){
+int gameOfLifeLogic(char image[16][16], int i, int j) {
+    // just fyi for me: it is array[row][[column]]
+
+   // for (int i=0; i<16; i++) {
+       // for (int j=0; j<16; j++){
             //find no of live neighbours
-            l_neighbours = noOfLiveNeighbours(image[i][j], i , j);
 
-            if (image[i][j] == 0xFF) { //cell is live
-
-                //any live cell with fewer than two live neighbours dies
-                if ( noOfLiveNeighbours(image[i][j], i , j)<2 ) {
-                    //death
-                    return 0;
-                }
-                //any live cell with two or three live neighbours is unaffected
-                else if (( noOfLiveNeighbours(image[i][j], i, j)==2 )||( noOfLiveNeighbours(image[i][j], i, j)==3 )) {
-                    //it lives
-                    return image[i][j];
-                }
-                //any live cell with more than three live neighbours dies
-                else if ( noOfLiveNeighbours(image[i][j], i, j)>3 ) {
-                    //more death
-                    return 0;
-                }
-            }   
-
-            else if (image[i][j] == 0) { //cells are dead
-                //any dead cell with exactly three live neighbours becomes alive
-                if ( noOfLiveNeighbours(image[i][j], i, j)==3 ) {
-                    //is alive
-                    return (uchar)0xFF;
-                }
-                else {
-                    //remains the same
-                    return image[i][j];
-                }
-            }
-            // printf( "%d \n", image[i][j] );
-            //printf( "hi: -%4.1d ", image[i][j] );            
+    int l_neighbours;
+    l_neighbours = noOfLiveNeighbours(image, i , j);
+    if (image[i][j] == 0xFF) { //cell is live
+    //any live cell with fewer than two live neighbours dies
+        if ( l_neighbours<2 ) {
+            //death
+            return 0;
+        }
+        //any live cell with two or three live neighbours is unaffected
+        else if (( l_neighbours==2 )||( l_neighbours==3 )) {
+            //it lives
+            return image[i][j];
+        }
+        //any live cell with more than three live neighbours dies
+        else if ( l_neighbours>3 ) {
+            //more death
+            return 0;
         }
     }
+
+    else if (image[i][j] == 0) { //cells are dead
+         //any dead cell with exactly three live neighbours becomes alive
+        if ( l_neighbours==3 ) {
+            //is alive
+            return (uchar)0xFF;
+        }
+        else {
+            //remains the same
+            return image[i][j];
+        }
+    }
+    // printf( "%d \n", image[i][j] );
+    //printf( "hi: -%4.1d ", image[i][j] );
+    // } inner for
+   // } outer for
+    //should return something here
+    return 0; //this im not sure about
 }
 
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
@@ -114,6 +116,11 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
     return live_n;
 }
 
+
+int worker() {
+    //because we need worker but thats all i can think of rn
+    return 0;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -175,12 +182,12 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
       c_in :> val;                    //read the pixel value
        image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
-       new_val = gameOfLifeLogic(image[y][x]);
+       new_val = gameOfLifeLogic(image, x, y);
       c_out <: (uchar)new_val;         //send some modified pixel out (we should move this somewhere else)
     }
   }
   printf( "\nOne processing round completed...\n" );
-  gameOfLifeLogic(image);
+ // gameOfLifeLogic(image); //dont need this here tbh
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
