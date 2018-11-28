@@ -27,6 +27,10 @@ port p_sda = XS1_PORT_1F;
 #define FXOS8700EQ_OUT_Z_MSB 0x5
 #define FXOS8700EQ_OUT_Z_LSB 0x6
 
+//Function Prototypes cos thats how C works
+int noOfLiveNeighbours(char image[16][16], int i, int j);
+int gameOfLifeLogic(char image[16][16], int i, int j);
+
 /////////////////////////////////////////////////////////////////////////////////////////
 //
 // The Logic of the Game of Life Game Thing
@@ -35,91 +39,95 @@ port p_sda = XS1_PORT_1F;
 int gameOfLifeLogic(char image[16][16], int i, int j) {
     // just fyi for me: it is array[row][[column]]
 
-    int d=0;
-    printf( "hi: its here %d ", d++ );
-
-
    // for (int i=0; i<16; i++) {
        // for (int j=0; j<16; j++){
-            //find no of live neighbours
 
     int l_neighbours;
     l_neighbours = noOfLiveNeighbours(image, i , j);
-    if (image[i][j] == 0xFF) { //cell is live
-    //any live cell with fewer than two live neighbours dies
+    //cell is live
+    if (image[i][j] == 0xFF) {
+        //any live cell with fewer than two live neighbours dies
         if ( l_neighbours<2 ) {
-            //death
             return 0;
         }
         //any live cell with two or three live neighbours is unaffected
         else if (( l_neighbours==2 )||( l_neighbours==3 )) {
-            //it lives
-            return image[i][j];
+            return image[i][j]; //or return 1?
         }
         //any live cell with more than three live neighbours dies
         else if ( l_neighbours>3 ) {
-            //more death
             return 0;
         }
     }
-
-    else if (image[i][j] == 0) { //cells are dead
-         //any dead cell with exactly three live neighbours becomes alive
+    //cells are dead
+    else if (image[i][j] == 0) {
+        //any dead cell with exactly three live neighbours becomes alive
         if ( l_neighbours==3 ) {
-            //is alive
             return (uchar)0xFF;
         }
         else {
-            //remains the same
-            return image[i][j];
+            return image[i][j]; //remains the same
         }
     }
-    // printf( "%d \n", image[i][j] );
-    //printf( "hi: -%4.1d ", image[i][j] );
-    // } inner for
+   // } inner for
    // } outer for
     //should return something here
     return 0; //this im not sure about
 }
 
-// NEED TO IMPLEMENT SIDE OF BOARD
+// NEED TO IMPLEMENT SIDE OF BOARD - i think what ive done makes sense?
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
     int live_n;
-    //right side
-    if (image[i][j+1]==0xFF)
+ /* check below */
+    if(i==16){
+        i = 0;
+    }
+
+    if(j==16){
+        j = 0;
+    }
+ /* ----------- */
+    if (image[i][j+1]==0xFF) //right side
         live_n++;
-    //left side
-    else  if (image[i][j-1]==0xFF)
+
+    else  if (image[i][j-1]==0xFF) //left side
         live_n++;
-    //top
-     else  if (image[i-1][j]==0xFF)
+
+    else  if (image[i-1][j]==0xFF) //top
         live_n++;
-    //bottom
-     else  if (image[i+1][j]==0xFF)
+
+    else  if (image[i+1][j]==0xFF) //bottom
         live_n++;
-    //top right
-     else  if (image[i-1][j+1]==0xFF)
-       live_n++;
-    //top left
-     else  if (image[i-1][j-1]==0xFF)
+
+    else  if (image[i-1][j+1]==0xFF) //top right
         live_n++;
-    //bottom right
-     else  if (image[i+1][j+1]==0xFF)
+
+    else  if (image[i-1][j-1]==0xFF) //top left
         live_n++;
-    //bottom left
-     else  if (image[i+1][j-1]==0xFF)
+
+    else  if (image[i+1][j+1]==0xFF)  //bottom right
         live_n++;
-    //elseeee
-     else {
+
+    else  if (image[i+1][j-1]==0xFF)  //bottom left
+        live_n++;
+
+    else
         live_n+=0;
-     }
+
   return live_n;
 }
 
+/*
+ * 1.gets values/line/grid from distributor
+ * 2.applies the logic
+ * 3.returns the new value(i.e if its dead or alive)
+ */
+int worker(char image[16][16], int i, int j) {
+    //so this is just for one value and it'll change if it was a grid or line-by-line
+    int new_val;
+    new_val = gameOfLifeLogic(image,i,j);
 
-int worker() {
-    //because we need worker but thats all i can think of rn
-    return 0;
+    return new_val;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -166,7 +174,7 @@ void DataInStream(char infname[], chanend c_out)
 void distributor(chanend c_in, chanend c_out, chanend fromAcc)
 {
   uchar val;
-  uchar new_val=0xFF;
+ // uchar new_val=0xFF;
   char image[16][16];
 
   //Starting up and wait for tilting of the xCore-200 Explorer
@@ -186,6 +194,8 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
       }
     }
 
+    /* not sure why you did this? shouldnt it be after the while loop anyways? -S
+   //sending the output image (???)
     for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
         new_val = gameOfLifeLogic(image, x, y);
@@ -193,27 +203,25 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
         c_out <: (uchar)new_val;
       }
     }
+    */
 
-  //send stuff to diff workers
-  while(1) {
-      select {
-          //case buttons
-          //case i think this is for LEDs
-          case worker :>
-      }
+   /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    * WHLE LOOP SHOULD DO THIS(ish):
+    * 1.create a number of workers
+    * 2.send values/lines/grid to workers
+    * 3.get result from workers
+    * 4.combine result into an new_image
+    * 5.send new_image to data out stream to make it a PGM image file (possibly outside while loop)
+    */
+  while(1){
+
+   //......insert stuff here.........
+
   }
 
 
 
-
-
-
-
-
-
-
   printf( "\nOne processing round completed...\n" );
- // gameOfLifeLogic(image); //dont need this here tbh
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
