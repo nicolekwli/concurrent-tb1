@@ -31,6 +31,20 @@ port p_sda = XS1_PORT_1F;
 int noOfLiveNeighbours(char image[16][16], int i, int j);
 int gameOfLifeLogic(char image[16][16], int i, int j);
 
+/*
+ * NOTES TO NICOLE:
+ * 1.OMG OMG OMG OMG !!!!!!! DO WE NEED A CHANNEL FOR A WORKER TO PASS STUFF TO ITSELF?????? !!!!!!!!!11!!!!!!!!!!!!
+ * 2.I just realized ive been creating all the arrays and EVERYTHING with 16x16, like hard coded
+ *   so we can either change stuff now to accept all sizes or we can do that later?
+ *   i guess it wont be that hard to change later??
+ * 3.SO ive created many functions and just done stuff that makes sense to me right now
+ *   itll all probably change but like ye
+ * 4. ive tried to comment as much as i can what i was thinking when i typed that code
+ *      hopefully its all understandable
+ * 5. this probably wont build because its not really proper code so
+ */
+
+
 /////////////////////////////////////////////////////////////////////////////////////////
 //
 // The Logic of the Game of Life Game Thing
@@ -117,10 +131,57 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
   return live_n;
 }
 
+//doesnt actually get the next line tho!!!!!!!!!
+//idea: maybe send an array of the packed "lines" so that it checks each one and sends the next non empty one
+unsigned char sendNextNonEmptyLine(uchar line[16], int i){
+    // i so that it starts only from that one cos for workers 2-4 onwards we obv dont need the first non empty line
+    //thus make sure worker 1 starts from 0
+    for (int n=i; n<16; n++){
+        //check if line is empty
+        if (line[n] != 0x00) {
+          //returns the line that is not empty
+          return line[n];
+
+         }
+    }
+
+    // has to return something here
+}
+
 /*
- * 1.gets values/line/grid from distributor
- * 2.applies the logic
- * 3.returns the new value(i.e if its dead or alive)
+ * so essentially we need to pack 16 pixels into 1 bit
+ * that sounds fun
+ * packing 16 bits will give a _ _ _ _ (4 digit) hex number
+ * how can we reduce that to one bit, if thats even possible?
+ */
+unsigned char packBits(char image[16][16], int row_no){
+    //function gets the image matrix and row_no is the line no.
+    //for example if row_no=8, then we pack the 8th line
+    uchar packed_line;
+
+    for(int i=0; i<16; i++){
+        for(int j=0; j<16; j++){
+            if (row_no == i){
+               //pack this shiiiiit right here woo hoo
+               //packed_line = stuff;
+
+               break;
+            }
+        }
+    }
+
+    return packed_line;
+}
+
+void unpackBits(){
+
+}
+
+/*
+ * 1.gets uchar line that is packed from distributor
+ * 2.unpacks the line
+ * 3.applies the logic
+ * 4.send result to data out stream to make it a PGM image file (or do we do this in distributor)
  */
 int worker(char image[16][16], int i, int j) {
     //so this is just for one value and it'll change if it was a grid or line-by-line
@@ -206,20 +267,42 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     */
 
    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    * WHLE LOOP SHOULD DO THIS(ish):
+    * WHILE LOOP SHOULD DO THIS(ish):
     * 1.create a number of workers
     * 2.send values/lines/grid to workers
     * 3.get result from workers
     * 4.combine result into an new_image
-    * 5.send new_image to data out stream to make it a PGM image file (possibly outside while loop)
+    * 5.send new_image to data out stream to make it a PGM image file (done in worker???)
     */
   while(1){
+      uchar all_lines[16]; //this is a list of all packed line
+      uchar line; //this is basically the packed line
 
-   //......insert stuff here.........
+      //to get the list all_lines[]
+      //we cant have a function for this i think because how to pass an array
+      //we must avoid pointers at all costs
+      for(int k=0; k<16; k++){
+         line = packBits(image, k);
+         all_lines[k] = line;
+      }
+
+      // create workers based on number of lines that actually have a live cell
+      // not sure how to go about this
+      uchar worker1;
+      uchar worker2;
+      uchar worker3;
+      uchar worker4;
+
+      par {
+
+          worker1 = sendNextNonEmptyLine(all_lines, 0);
+          worker2 = sendNextNonEmptyLine(all_lines, 4);
+          worker3 = sendNextNonEmptyLine(all_lines, 8);
+          worker4 = sendNextNonEmptyLine(all_lines, 12);
+
+      }
 
   }
-
-
 
   printf( "\nOne processing round completed...\n" );
 }
