@@ -91,43 +91,51 @@ int gameOfLifeLogic(char image[16][16], int i, int j) {
 
 // NEED TO IMPLEMENT SIDE OF BOARD - i think what ive done makes sense?
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
-    int live_n;
- /* check below */
-    if(i==16){
-        i = 0;
-    }
+    int live_n =0;
 
-    if(j==16){
-        j = 0;
+    int right = j+1;
+    int left = j-1;
+    int top = i-1;
+    int bottom = i+1;
+
+    if (top == -1){
+        top = 15;
+    }
+    if (bottom == 16){
+        bottom = 0;
+    }
+    if (left == -1){
+        left = 15;
+    }
+    if (right == 16){
+       right = 0;
     }
  /* ----------- */
-    if (image[i][j+1]==0xFF) //right side
+    if (image[i][right]==0xFF) //right side
         live_n++;
 
-    else  if (image[i][j-1]==0xFF) //left side
+    if (image[i][left]==0xFF) //left side
         live_n++;
 
-    else  if (image[i-1][j]==0xFF) //top
+    if (image[top][j]==0xFF) //top
         live_n++;
 
-    else  if (image[i+1][j]==0xFF) //bottom
+    if (image[bottom][j]==0xFF) //bottom
         live_n++;
 
-    else  if (image[i-1][j+1]==0xFF) //top right
+    if (image[top][right]==0xFF) //top right
         live_n++;
 
-    else  if (image[i-1][j-1]==0xFF) //top left
+    if (image[top][left]==0xFF) //top left
         live_n++;
 
-    else  if (image[i+1][j+1]==0xFF)  //bottom right
+    if (image[bottom][right]==0xFF)  //bottom right
         live_n++;
 
-    else  if (image[i+1][j-1]==0xFF)  //bottom left
+    if (image[bottom][left]==0xFF)  //bottom left
         live_n++;
 
-    else
-        live_n+=0;
-
+  // printf("live neighbours %d\n", live_n);
   return live_n;
 }
 
@@ -251,20 +259,21 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
         c_in :> val;                    //read the pixel value
-         image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
+        image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
       }
     }
-
+    printf( "Processing DONE...\n" );
     /* not sure why you did this? shouldnt it be after the while loop anyways? -S
+     to make sure stuff work like i don't want to solve error when par is happening i don't even want to think about it */
    //sending the output image (???)
     for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-        new_val = gameOfLifeLogic(image, x, y);
+        int new_val = gameOfLifeLogic(image, x, y);
 
         c_out <: (uchar)new_val;
       }
     }
-    */
+
 
    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     * WHILE LOOP SHOULD DO THIS(ish):
@@ -277,11 +286,10 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
   while(1){
       uchar all_lines[16]; //this is a list of all packed line
       uchar line; //this is basically the packed line
-
       //to get the list all_lines[]
       //we cant have a function for this i think because how to pass an array
       //we must avoid pointers at all costs
-      for(int k=0; k<16; k++){
+      /*for(int k=0; k<16; k++){
          line = packBits(image, k);
          all_lines[k] = line;
       }
@@ -300,7 +308,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
           worker3 = sendNextNonEmptyLine(all_lines, 8);
           worker4 = sendNextNonEmptyLine(all_lines, 12);
 
-      }
+      }*/
 
   }
 
