@@ -157,7 +157,6 @@ unsigned char sendNextNonEmptyLine(uchar line[16], int i){
 
 /*
  * so essentially we need to pack 16 pixels into 1 bit
- * that sounds fun
  * packing 16 bits will give a _ _ _ _ (4 digit) hex number
  * how can we reduce that to one bit, if thats even possible?
  */
@@ -166,18 +165,17 @@ unsigned char packBits(char image[16][16], int row_no){
     //for example if row_no=8, then we pack the 8th line
     uchar packed_line;
 
-    for(int i=0; i<16; i++){
-        for(int j=0; j<16; j++){
-            if (row_no == i){
-               //pack this shiiiiit right here woo hoo
-               //packed_line = stuff;
+    //int line;
+    uchar val;
 
-               break;
-            }
-        }
+
+    for(int j=0; j<16; j++){
+        val = (image[row_no][j]) & 0x01;
+        packed_line = (val << (16-j)) | packed_line;
     }
-
+    // printf("a line: %c\n", packed_line);
     return packed_line;
+
 }
 
 void unpackBits(){
@@ -287,15 +285,16 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
       uchar line; //this is basically the packed line
 
       //to get the list all_lines[]
-      //we cant have a function for this i think because how to pass an array
-      //we must avoid pointers at all costs
       for(int k=0; k<16; k++){
          line = packBits(image, k);
          all_lines[k] = line;
       }
 
-      // create workers based on number of lines that actually have a live cell
-      // not sure how to go about this
+      /*for(int a=0; a<16; a++){
+          printf("line %u\n", all_lines[a]);
+      }*/
+
+      // try to create workers based on number of lines that actually have a live cell
       uchar worker1;
       uchar worker2;
       uchar worker3;
@@ -307,9 +306,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
           worker2 = sendNextNonEmptyLine(all_lines, 4);
           worker3 = sendNextNonEmptyLine(all_lines, 8);
           worker4 = sendNextNonEmptyLine(all_lines, 12);
-
       }
-
   }
 
   printf( "\nOne processing round completed...\n" );
