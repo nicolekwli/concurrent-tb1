@@ -149,7 +149,6 @@ unsigned char sendNextNonEmptyLine(uchar line[16], int i){
         if (line[n] != 0x00) {
           //returns the line that is not empty
           return line[n];
-
          }
     }
 
@@ -262,17 +261,17 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
         image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
       }
     }
-    printf( "Processing DONE...\n" );
+    printf( "Processing image DONE...\n" );
     /* not sure why you did this? shouldnt it be after the while loop anyways? -S
      to make sure stuff work like i don't want to solve error when par is happening i don't even want to think about it */
-   //sending the output image (???)
-    for( int y = 0; y < IMHT; y++ ) {   //go through all lines
+    //sending the output image (???)
+    /*for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
         int new_val = gameOfLifeLogic(image, x, y);
 
         c_out <: (uchar)new_val;
       }
-    }
+    }*/
 
 
    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -286,10 +285,11 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
   while(1){
       uchar all_lines[16]; //this is a list of all packed line
       uchar line; //this is basically the packed line
+
       //to get the list all_lines[]
       //we cant have a function for this i think because how to pass an array
       //we must avoid pointers at all costs
-      /*for(int k=0; k<16; k++){
+      for(int k=0; k<16; k++){
          line = packBits(image, k);
          all_lines[k] = line;
       }
@@ -308,7 +308,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
           worker3 = sendNextNonEmptyLine(all_lines, 8);
           worker4 = sendNextNonEmptyLine(all_lines, 12);
 
-      }*/
+      }
 
   }
 
