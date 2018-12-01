@@ -153,7 +153,8 @@ void unpackBits(ushor line){
 
 
 //can be implemented later i guess
-unsigned short getLineToBeProcessed(ushor lines[16]){
+// return true or false indicating whether line hsould be processed
+/*unsigned short getLineToBeProcessed(ushor lines[16]){
     for (int n=0; n<16; n++){
         //check if line is not empty (might want to keep this)
         if (lines[n] != 0x00 ) {
@@ -178,32 +179,54 @@ unsigned short getLineToBeProcessed(ushor lines[16]){
     }
 
     return 0x00;
-}
+}*/
 
 
-// How this function works at the moment: goes through the four lines starting from i skipping the empty ones
-void worker(char image[16][16], ushor line[16], int n, chanend c_out){
+// How this function works at the moment: goes through the lines and gets new image values
+void worker(chanend c_out, chanend fromDist){
     ushor shiftLine = 0;
     uchar new_val;
-    for (int i=n; i<16; i++){
-        //check if line is not empty (might want to keep this)
-        //if (line[n] != 0x00) {
-            //printf("not empty");
+    // ushor line[16];
+    ushor line;
+    int row;
 
-          /// unpack line and send position of bit to gameOfLifeLogic
-          for (int j=0; j<16; j++){
-            shiftLine |= (line[i] >> (15-j));
-            if ((shiftLine & 0x01) == 1){
-                new_val = gameOfLifeLogic(image,i,j);
-            }
-            else new_val = shiftLine & 0x01;
-            printf("- %u", new_val);
-            // send new value to output
-            c_out <: new_val;
-          }
-         //}
-         printf("\n");
+    char image[16][16];
+    // get image
+    for( int y = 0; y < 16; y++ ) {   //go through all lines
+        for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+           fromDist :> image[y][x];
+        }
+      }
+    printf("entire image sent and received\n");
+
+    while (1){
+        // get the line to be processed from distributor
+            fromDist :> line;
+            // printf("line received\n");
+            fromDist :> row;
+            // printf("row received\n");
+            // for (int i=0; i<16; i++){
+                //check if line is not empty (might want to keep this)
+                //if (line[n] != 0x00) {
+                    //printf("not empty");
+
+                  /// unpack line and send position of bit to gameOfLifeLogic
+                  for (int j=0; j<16; j++){
+                    // get the bit needed in the line
+                    shiftLine |= (line >> (15-j));
+                    if ((shiftLine & 0x01) == 1){
+                        new_val = gameOfLifeLogic(image,row,j);
+                    }
+                    else new_val = shiftLine & 0x01;
+                    printf("- %u", new_val);
+                    // send new value to output
+                    c_out <: new_val;
+                  }
+                 //}
+                 // printf("one line done\n");
     }
+
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +270,8 @@ void DataInStream(char infname[], chanend c_out)
 // Currently the function just inverts the image
 //
 /////////////////////////////////////////////////////////////////////////////////////////
-void distributor(chanend c_in, chanend c_out, chanend fromAcc)
+//void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker)
+void distributor(chanend c_in, chanend fromAcc, chanend toWorker)
 {
  // uchar val;
  // uchar new_val=0xFF;
@@ -291,37 +315,32 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
       }
 
       //to remove empty lines with all 0s
-      for(int l=0; l<16; l++){
-         // int count=0;
+      /*for(int l=0; l<16; l++){
         linesToBeProcessed[l] = getLineToBeProcessed(all_lines);
       }
-
-
       for(int a=0; a<16; a++){
           printf(" \n lines to be processed %d: %u\n", a, linesToBeProcessed[a]);
+      }*/
+
+      // send image
+      for( int y = 0; y < 16; y++ ) {   //go through all lines
+        for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+         // c_in :> val;                    //read the pixel value
+         // image[y][x] = val;              //[height][width]
+          toWorker <: image[y][x];
+        }
       }
 
-
-      // try to create workers based on number of lines that actually have a live cell ??
-      ushor worker1;
-      ushor worker2;
-      ushor worker3;
-      ushor worker4;
-
-      par {
-          //worker1 = sendNextNonEmptyLine(all_lines, 0);
-          //worker2 = sendNextNonEmptyLine(all_lines, 4);
-          //worker3 = sendNextNonEmptyLine(all_lines, 8);
-          //worker4 = sendNextNonEmptyLine(all_lines, 12);
-          worker(image, linesToBeProcessed, 0, c_out);
-          //worker(image, linesToBeProcessed, 4, c_out);
-          //worker(image, linesToBeProcessed, 8, c_out);
-          //worker(image, linesToBeProcessed, 12, c_out);
+      for(int k=0; k<16; k++){
+         toWorker <: all_lines[k];
+         toWorker <: k;
       }
 
-      printf("\n im here");
+      // send line to process
+      // send row number of line
+
+      //worker(image, linesToBeProcessed, 0, c_out);
   }
-
   printf( "\nOne processing round completed...\n" );
 }
 
@@ -417,13 +436,16 @@ i2c_master_if i2c[1];               //interface to orientation
 char infname[] = "test.pgm";     //put your input image path here
 char outfname[] = "testout.pgm"; //put your output image path here
 chan c_inIO, c_outIO, c_control;    //extend your channel definitions here
+chan workerChans[4];
 
 par {
     i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
-   // orientation(i2c[0],c_control);        //client thread reading orientation data
+    orientation(i2c[0],c_control);        //client thread reading orientation data
     DataInStream(infname, c_inIO);          //thread to read in a PGM image
-    //DataOutStream(outfname, c_outIO);       //thread to write out a PGM image
-    distributor(c_inIO, c_outIO, c_control);//thread to coordinate work on image
+    DataOutStream(outfname, c_outIO);       //thread to write out a PGM image
+    distributor(c_inIO, c_control, workerChans[4]);//thread to coordinate work on image
+    // for loop to create workers
+    worker(c_outIO, workerChans);
   }
 
   return 0;
