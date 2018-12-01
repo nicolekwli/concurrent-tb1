@@ -139,46 +139,37 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
   return live_n;
 }
 
-//doesnt actually get the next line tho!!!!!!!!!
-//idea: maybe send an array of the packed "lines" so that it checks each one and sends the next non empty one
-unsigned char sendNextNonEmptyLine(uchar line[16], int i){
-    // i so that it starts only from that one cos for workers 2-4 onwards we obv dont need the first non empty line
-    //thus make sure worker 1 starts from 0
-    for (int n=i; n<16; n++){
-        //check if line is empty
-        if (line[n] != 0x00) {
-          //returns the line that is not empty
-          return line[n];
-         }
-    }
-
-    // has to return something here
-}
-
 /*
  * so essentially we need to pack 16 pixels into 1 bit
  * packing 16 bits will give a _ _ _ _ (4 digit) hex number
  * how can we reduce that to one bit, if thats even possible?
  */
-unsigned char packBits(char image[16][16], int row_no){
+unsigned short packBits(uchar image[16][16], int row_no){
     //function gets the image matrix and row_no is the line no.
     //for example if row_no=8, then we pack the 8th line
-    uchar packed_line;
+    unsigned short packed_line = 0;
 
     //int line;
-    uchar val;
+    unsigned short val;
 
-
+    // printf("packing bits...");
     for(int j=0; j<16; j++){
         val = (image[row_no][j]) & 0x01;
-        packed_line = (val << (16-j)) | packed_line;
+        //printf("a val: %u\n", val);
+        //printf("a packedline before: %x\n", packed_line);
+
+        if (val != 0){
+            packed_line |= (1 << (15-j));
+        }
+
+        // printf("a packedline: %u\n", packed_line);
     }
-    // printf("a line: %c\n", packed_line);
+    //printf("a line: %u\n", packed_line);
     return packed_line;
 
 }
 
-void unpackBits(){
+void unpackBits(unsigned short line){
 
 }
 
@@ -194,6 +185,35 @@ int worker(char image[16][16], int i, int j) {
     new_val = gameOfLifeLogic(image,i,j);
 
     return new_val;
+}
+
+//doesnt actually get the next line tho!!!!!!!!!
+//idea: maybe send an array of the packed "lines" so that it checks each one and sends the next non empty one
+// How this function works at the moment: goes through the four lines starting from i skipping the empty ones
+void sendNextNonEmptyLine(char image[16][16], unsigned short line[16], int i, chanend c_out){
+    unsigned short shiftLine = 0;
+    uchar new_val;
+    for (int n=i; n<16; n++){
+        //check if line is not empty (might want to keep this)
+        //if (line[n] != 0x00) {
+            //printf("not empty");
+
+          /// unpack line and send position of bit to gameOfLifeLogic
+          for (int j=0; j<16; j++){
+            shiftLine |= (line[n] >> (15-j));
+            if ((shiftLine & 0x01) == 1){
+                new_val = gameOfLifeLogic(image,n,j);
+            }
+            else new_val = shiftLine & 0x01;
+            printf("- %u", new_val);
+            // send new value to output
+            c_out <: new_val;
+          }
+         //}
+         printf("\n");
+    }
+
+    // has to return something here
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -241,7 +261,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
 {
   uchar val;
  // uchar new_val=0xFF;
-  char image[16][16];
+  uchar image[16][16];
 
   //Starting up and wait for tilting of the xCore-200 Explorer
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
@@ -260,13 +280,9 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
       }
     }
     printf( "Processing image DONE...\n" );
-    /* not sure why you did this? shouldnt it be after the while loop anyways? -S
-     to make sure stuff work like i don't want to solve error when par is happening i don't even want to think about it */
-    //sending the output image (???)
     /*for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
         int new_val = gameOfLifeLogic(image, x, y);
-
         c_out <: (uchar)new_val;
       }
     }*/
@@ -281,8 +297,8 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
     * 5.send new_image to data out stream to make it a PGM image file (done in worker???)
     */
   while(1){
-      uchar all_lines[16]; //this is a list of all packed line
-      uchar line; //this is basically the packed line
+      unsigned short all_lines[16]; //this is a list of all packed line
+      unsigned short line; //this is basically the packed line
 
       //to get the list all_lines[]
       for(int k=0; k<16; k++){
@@ -291,21 +307,25 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
       }
 
       /*for(int a=0; a<16; a++){
-          printf("line %u\n", all_lines[a]);
+          printf("line %d: %u\n", a, all_lines[a]);
       }*/
 
+
       // try to create workers based on number of lines that actually have a live cell
-      uchar worker1;
-      uchar worker2;
-      uchar worker3;
-      uchar worker4;
+      unsigned short worker1;
+      unsigned short worker2;
+      unsigned short worker3;
+      unsigned short worker4;
 
       par {
-
-          worker1 = sendNextNonEmptyLine(all_lines, 0);
-          worker2 = sendNextNonEmptyLine(all_lines, 4);
-          worker3 = sendNextNonEmptyLine(all_lines, 8);
-          worker4 = sendNextNonEmptyLine(all_lines, 12);
+          //worker1 = sendNextNonEmptyLine(all_lines, 0);
+          //worker2 = sendNextNonEmptyLine(all_lines, 4);
+          //worker3 = sendNextNonEmptyLine(all_lines, 8);
+          //worker4 = sendNextNonEmptyLine(all_lines, 12);
+          sendNextNonEmptyLine(image, all_lines, 0, c_out);
+          //sendNextNonEmptyLine(image, all_lines, 4, c_out);
+          //sendNextNonEmptyLine(image, all_lines, 8, c_out);
+          //sendNextNonEmptyLine(image, all_lines, 12, c_out);
       }
   }
 
