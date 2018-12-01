@@ -5,13 +5,13 @@
 #include <xs1.h>
 #include <stdio.h>
 #include "pgmIO.h"
-//#include "i2c.h"
 #include "../lib_i2c/api/i2c.h"
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
 
 typedef unsigned char uchar;      //using uchar as shorthand
+typedef unsigned short ushor;       //using ushor as shorthand
 
 port p_scl = XS1_PORT_1E;         //interface ports to orientation
 port p_sda = XS1_PORT_1F;
@@ -27,22 +27,9 @@ port p_sda = XS1_PORT_1F;
 #define FXOS8700EQ_OUT_Z_MSB 0x5
 #define FXOS8700EQ_OUT_Z_LSB 0x6
 
-//Function Prototypes cos thats how C works
+//Function Prototypes
 int noOfLiveNeighbours(char image[16][16], int i, int j);
 int gameOfLifeLogic(char image[16][16], int i, int j);
-
-/*
- * NOTES TO NICOLE:
- * 1.OMG OMG OMG OMG !!!!!!! DO WE NEED A CHANNEL FOR A WORKER TO PASS STUFF TO ITSELF?????? !!!!!!!!!11!!!!!!!!!!!!
- * 2.I just realized ive been creating all the arrays and EVERYTHING with 16x16, like hard coded
- *   so we can either change stuff now to accept all sizes or we can do that later?
- *   i guess it wont be that hard to change later??
- * 3.SO ive created many functions and just done stuff that makes sense to me right now
- *   itll all probably change but like ye
- * 4. ive tried to comment as much as i can what i was thinking when i typed that code
- *      hopefully its all understandable
- * 5. this probably wont build because its not really proper code so
- */
 
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -52,9 +39,6 @@ int gameOfLifeLogic(char image[16][16], int i, int j);
 /////////////////////////////////////////////////////////////////////////////////////////
 int gameOfLifeLogic(char image[16][16], int i, int j) {
     // just fyi for me: it is array[row][[column]]
-
-   // for (int i=0; i<16; i++) {
-       // for (int j=0; j<16; j++){
 
     int l_neighbours;
     l_neighbours = noOfLiveNeighbours(image, i , j);
@@ -83,13 +67,11 @@ int gameOfLifeLogic(char image[16][16], int i, int j) {
             return image[i][j]; //remains the same
         }
     }
-   // } inner for
-   // } outer for
+
     //should return something here
     return 0; //this im not sure about
 }
 
-// NEED TO IMPLEMENT SIDE OF BOARD - i think what ive done makes sense?
 int noOfLiveNeighbours(char image[16][16], int i, int j) {
     int live_n =0;
 
@@ -110,7 +92,7 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
     if (right == 16){
        right = 0;
     }
- /* ----------- */
+ /* ------------------------------------------ */
     if (image[i][right]==0xFF) //right side
         live_n++;
 
@@ -139,18 +121,14 @@ int noOfLiveNeighbours(char image[16][16], int i, int j) {
   return live_n;
 }
 
-/*
- * so essentially we need to pack 16 pixels into 1 bit
- * packing 16 bits will give a _ _ _ _ (4 digit) hex number
- * how can we reduce that to one bit, if thats even possible?
- */
+
 unsigned short packBits(uchar image[16][16], int row_no){
     //function gets the image matrix and row_no is the line no.
     //for example if row_no=8, then we pack the 8th line
-    unsigned short packed_line = 0;
+    ushor packed_line = 0;
 
     //int line;
-    unsigned short val;
+    ushor val;
 
     // printf("packing bits...");
     for(int j=0; j<16; j++){
@@ -169,40 +147,54 @@ unsigned short packBits(uchar image[16][16], int row_no){
 
 }
 
-void unpackBits(unsigned short line){
+void unpackBits(ushor line){
 
 }
 
-/*
- * 1.gets uchar line that is packed from distributor
- * 2.unpacks the line
- * 3.applies the logic
- * 4.send result to data out stream to make it a PGM image file (or do we do this in distributor)
- */
-int worker(char image[16][16], int i, int j) {
-    //so this is just for one value and it'll change if it was a grid or line-by-line
-    int new_val;
-    new_val = gameOfLifeLogic(image,i,j);
 
-    return new_val;
+//can be implemented later i guess
+unsigned short getLineToBeProcessed(ushor lines[16]){
+    for (int n=0; n<16; n++){
+        //check if line is not empty (might want to keep this)
+        if (lines[n] != 0x00 ) {
+            return lines[n];
+        }
+        else if (lines[0] == 0x00){
+            if ((lines[1] != 0x00)||(lines[15] != 0x00)){
+                return lines[0];
+            }
+        }
+        else if (lines[15] == 0x00){
+            if ((lines[0] != 0x00)||(lines[14] != 0x00)){
+                return lines[15];
+            }
+        }
+        else if (lines[n] == 0x00) {
+
+            if ((lines[n+1] != 0x00)||(lines[n-1] != 0x00)){
+                return lines[n];
+            }
+        }
+    }
+
+    return 0x00;
 }
 
-//doesnt actually get the next line tho!!!!!!!!!
-//idea: maybe send an array of the packed "lines" so that it checks each one and sends the next non empty one
+
 // How this function works at the moment: goes through the four lines starting from i skipping the empty ones
-void sendNextNonEmptyLine(char image[16][16], unsigned short line[16], int i, chanend c_out){
-    unsigned short shiftLine = 0;
+void worker(char image[16][16], ushor line[16], int n, chanend c_out){
+    ushor shiftLine = 0;
     uchar new_val;
-    for (int n=i; n<16; n++){
+    for (int i=n; i<16; i++){
         //check if line is not empty (might want to keep this)
         //if (line[n] != 0x00) {
             //printf("not empty");
 
           /// unpack line and send position of bit to gameOfLifeLogic
           for (int j=0; j<16; j++){
-            shiftLine |= (line[n] >> (15-j));
+            shiftLine |= (line[i] >> (15-j));
             if ((shiftLine & 0x01) == 1){
-                new_val = gameOfLifeLogic(image,n,j);
+                new_val = gameOfLifeLogic(image,i,j);
             }
             else new_val = shiftLine & 0x01;
             printf("- %u", new_val);
@@ -212,8 +204,6 @@ void sendNextNonEmptyLine(char image[16][16], unsigned short line[16], int i, ch
          //}
          printf("\n");
     }
-
-    // has to return something here
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -259,14 +249,14 @@ void DataInStream(char infname[], chanend c_out)
 /////////////////////////////////////////////////////////////////////////////////////////
 void distributor(chanend c_in, chanend c_out, chanend fromAcc)
 {
-  uchar val;
+ // uchar val;
  // uchar new_val=0xFF;
   uchar image[16][16];
 
   //Starting up and wait for tilting of the xCore-200 Explorer
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
-  printf( "Waiting for Board Tilt...\n" );
-  fromAcc :> int value;
+ // printf( "Waiting for Board Tilt...\n" );
+ // fromAcc :> int value;
 
   //Read in and do something with your image values..
   //This just inverts every pixel, but you should
@@ -275,58 +265,61 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc)
   // Store whatever the image is in a 2D array
     for( int y = 0; y < IMHT; y++ ) {   //go through all lines
       for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-        c_in :> val;                    //read the pixel value
-        image[y][x] = val;              //lol which one is height and which is width gos pls help nicole says it doesnt matter
+       // c_in :> val;                    //read the pixel value
+       // image[y][x] = val;              //[height][width]
+        c_in :> image[y][x];
       }
     }
-    printf( "Processing image DONE...\n" );
-    /*for( int y = 0; y < IMHT; y++ ) {   //go through all lines
-      for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-        int new_val = gameOfLifeLogic(image, x, y);
-        c_out <: (uchar)new_val;
-      }
-    }*/
+    printf( "\nProcessing image DONE...\n" );
 
-
-   /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   /*
     * WHILE LOOP SHOULD DO THIS(ish):
     * 1.create a number of workers
     * 2.send values/lines/grid to workers
     * 3.get result from workers
-    * 4.combine result into an new_image
-    * 5.send new_image to data out stream to make it a PGM image file (done in worker???)
     */
   while(1){
-      unsigned short all_lines[16]; //this is a list of all packed line
-      unsigned short line; //this is basically the packed line
+      ushor all_lines[16]; //this is a list of all packed line
+      ushor linesToBeProcessed[16];
+      ushor line; //this is basically the packed line
 
       //to get the list all_lines[]
       for(int k=0; k<16; k++){
          line = packBits(image, k);
          all_lines[k] = line;
+         //can do this: all_lines[k]=packBits(image, k);
       }
 
-      /*for(int a=0; a<16; a++){
-          printf("line %d: %u\n", a, all_lines[a]);
-      }*/
+      //to remove empty lines with all 0s
+      for(int l=0; l<16; l++){
+         // int count=0;
+        linesToBeProcessed[l] = getLineToBeProcessed(all_lines);
+      }
 
 
-      // try to create workers based on number of lines that actually have a live cell
-      unsigned short worker1;
-      unsigned short worker2;
-      unsigned short worker3;
-      unsigned short worker4;
+      for(int a=0; a<16; a++){
+          printf(" \n lines to be processed %d: %u\n", a, linesToBeProcessed[a]);
+      }
+
+
+      // try to create workers based on number of lines that actually have a live cell ??
+      ushor worker1;
+      ushor worker2;
+      ushor worker3;
+      ushor worker4;
 
       par {
           //worker1 = sendNextNonEmptyLine(all_lines, 0);
           //worker2 = sendNextNonEmptyLine(all_lines, 4);
           //worker3 = sendNextNonEmptyLine(all_lines, 8);
           //worker4 = sendNextNonEmptyLine(all_lines, 12);
-          sendNextNonEmptyLine(image, all_lines, 0, c_out);
-          //sendNextNonEmptyLine(image, all_lines, 4, c_out);
-          //sendNextNonEmptyLine(image, all_lines, 8, c_out);
-          //sendNextNonEmptyLine(image, all_lines, 12, c_out);
+          worker(image, linesToBeProcessed, 0, c_out);
+          //worker(image, linesToBeProcessed, 4, c_out);
+          //worker(image, linesToBeProcessed, 8, c_out);
+          //worker(image, linesToBeProcessed, 12, c_out);
       }
+
+      printf("\n im here");
   }
 
   printf( "\nOne processing round completed...\n" );
@@ -356,12 +349,13 @@ void DataOutStream(char outfname[], chanend c_in)
       c_in :> line[ x ];
     }
     _writeoutline( line, IMWD );
-    printf( "DataOutStream: Line written...\n" );
+    printf( "\n");
+   // printf( " DataOutStream: Line written...\n" );
   }
 
   //Close the PGM image
   _closeoutpgm();
-  printf( "DataOutStream: Done...\n" );
+  printf( "\nDataOutStream: Done...\n" );
   return;
 }
 
@@ -408,6 +402,7 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
       }
     }
   }
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -425,9 +420,9 @@ chan c_inIO, c_outIO, c_control;    //extend your channel definitions here
 
 par {
     i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
-    orientation(i2c[0],c_control);        //client thread reading orientation data
+   // orientation(i2c[0],c_control);        //client thread reading orientation data
     DataInStream(infname, c_inIO);          //thread to read in a PGM image
-    DataOutStream(outfname, c_outIO);       //thread to write out a PGM image
+    //DataOutStream(outfname, c_outIO);       //thread to write out a PGM image
     distributor(c_inIO, c_outIO, c_control);//thread to coordinate work on image
   }
 
