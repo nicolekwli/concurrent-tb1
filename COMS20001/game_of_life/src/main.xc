@@ -151,7 +151,6 @@ void unpackBits(ushor line){
 
 }
 
-
 //can be implemented later i guess
 // return true or false indicating whether line hsould be processed
 /*unsigned short getLineToBeProcessed(ushor lines[16]){
@@ -214,26 +213,27 @@ void worker(chanend toCollect, chanend fromDist){
                     new_val = gameOfLifeLogic(image,row,j);
                     //}
                     //else new_val = shiftLine & 0x01;
-                    //printf("- %u", new_val);
                     // c_out <: new_val;
                     toCollect <: new_val;
-                    //printf("sent to collect");
                   }
                  //}
-                 // printf("one line done\n");
     }
 }
 
-void collector(chanend fromWorker[4], chanend toOutput){
+void collector(chanend fromWorker[4], chanend c_out){
     uchar val;
+    int a=0;
     while (1){
             for (int i=0; i<4; i++){
-                for (int count = 0 ; count < 15; count++){
+                for (int count = 0 ; count < 16; count++){
                     fromWorker[i] :> val;
                     //printf("collected from worker %d %u \n", i, val);
                     //printf("- %u", val);
-                    toOutput <: val;
+                    c_out <: val;
+                    //printf("%d", count);
                 }
+                //printf("A IS %d\n", a);
+                a++;
                 //printf("\n");
         }
     }
@@ -286,7 +286,6 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
  // uchar val;
  // uchar new_val=0xFF;
   uchar image[16][16];
-  uchar val;
 
   //Starting up and wait for tilting of the xCore-200 Explorer
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
@@ -314,9 +313,9 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
     * 3.get result from workers
     */
   //while(1){
-      ushor all_lines[16]; //this is a list of all packed line
-      ushor linesToBeProcessed[16];
-      ushor line; //this is basically the packed line
+      //ushor all_lines[16]; //this is a list of all packed line
+      //ushor linesToBeProcessed[16];
+      //ushor line; //this is basically the packed line
 
       //to get the list all_lines[]
       /*for(int k=0; k<16; k++){
@@ -360,7 +359,7 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
 
       //worker(image, linesToBeProcessed, 0, c_out);
   //}
-  printf( "\nOne processing round completed...\n" );
+  //printf( "\nOne processing round completed...\n" );
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -385,12 +384,15 @@ void DataOutStream(char outfname[], chanend c_in)
   for( int y = 0; y < IMHT; y++ ) {
     for( int x = 0; x < IMWD; x++ ) {
       c_in :> line[ x ];
-      printf( "-%4.1d ", line[ x ] ); //show image values
+      // printf( "-%4.1d ", line[ x ] ); //show image values
+      //printf("%d", x);
     }
     _writeoutline( line, IMWD );
-    printf( "\n");
+    //printf("Y IS: %d \n", y);
+    //printf( "\n");
     //printf( " DataOutStream: Line written...\n" );
   }
+  printf("all lines written");
 
   //Close the PGM image
   _closeoutpgm();
