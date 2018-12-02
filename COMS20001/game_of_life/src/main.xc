@@ -180,7 +180,10 @@ void unpackBits(ushor line){
 }*/
 
 
-// How this function works at the moment: goes through the lines and gets new image values
+// Represents each worker
+// Goes through the row instructed by the distributor
+// Sends the resulting value of each cell to the collector till each row is done
+// And then moves on to next row sent by the distributor
 void worker(chanend toCollect, chanend fromDist){
     //ushor shiftLine = 0;
     uchar new_val;
@@ -220,6 +223,9 @@ void worker(chanend toCollect, chanend fromDist){
     }
 }
 
+// Collects data each and sends to output image in order
+// I'm guessing it should be stored in an image and sent back to distributor for next round for next iteration(add code)
+// otherwise we allow the current code to run and output the image
 void collector(chanend fromWorker[4], chanend c_out){
     uchar val;
     int a=0;
@@ -280,6 +286,10 @@ void DataInStream(char infname[], chanend c_out)
 // Currently the function just inverts the image
 //
 /////////////////////////////////////////////////////////////////////////////////////////
+
+// Stores the current image
+// Send image to each worker
+// Also distributes lines to workers sequentially
 //void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker)
 void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
 {
