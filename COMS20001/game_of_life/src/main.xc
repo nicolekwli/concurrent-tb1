@@ -191,7 +191,7 @@ void worker(chanend toCollect, chanend fromDist){
     //ushor shiftLine = 0;
     uchar new_val;
     // ushor line[16];
-    ushor line;
+    //ushor line;
     int row;
 
     char image[16][16];
@@ -324,7 +324,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 {
  // uchar val;
  // uchar new_val=0xFF;
-  uchar image[16][16]; //i have made this variable obsolete muahahaha
+//  uchar image[16][16]; //i have made this variable obsolete muahahaha
   uchar currentImage[16][16];
   uchar imageVal;
   int collectorFlag = 0;
@@ -415,7 +415,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                         printf("image recieved \n ");
                   //}
               }
-                else if (collectorFlag = 3){
+                else if (collectorFlag == 3){
                     // split image and send to workers
                       // MODIFY: should send image as only the lines the workers should deal with
                       // should also send an extra top and bottom row
