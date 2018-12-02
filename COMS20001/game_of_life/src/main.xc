@@ -221,6 +221,7 @@ void worker(chanend toCollect, chanend fromDist){
                     //else new_val = shiftLine & 0x01;
                     // c_out <: new_val;
                     toCollect <: new_val;
+                    //printf("row sent to collect\n");
                   }
                  //}
     }
@@ -240,18 +241,21 @@ void collector(chanend fromWorker[4], chanend toDistributor){
 
     while (1){
         toDistributor <: 3;
-        for (int i=0; i<4; i++){
-            for (int count = 0 ; count < 16; count++){
-                fromWorker[i] :> val;
-                newImage[rowCount][count] = val;
-                //printf("collected from worker %d %u \n", i, val);
-                //printf("- %u", val);
-                // toDistributor <: val;
-                //c_out <: val;
-                //printf("%d", count);
+        for (int k=0; k<4; k++){
+            for (int i=0; i<4; i++){
+                for (int count = 0 ; count < 16; count++){
+                    fromWorker[i] :> val;
+                    newImage[rowCount][count] = val;
+                    printf("collected from worker %d count %d: %u \n", i,count,  val);
+                    printf("- %u", val);
+                    // toDistributor <: val;
+                    //c_out <: val;
+                    //printf("%d", count);
+                }
+                rowCount++;
             }
-            rowCount++;
         }
+
         toDistributor :> sig;
         if (sig == 1){
             // After collecting we send to the distributor
@@ -416,6 +420,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   //}
               }
                 else if (collectorFlag == 3){
+                    //printf("FLAG 3 COLLECTED\n");
                     // split image and send to workers
                       // MODIFY: should send image as only the lines the workers should deal with
                       // should also send an extra top and bottom row
@@ -430,11 +435,10 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                       printf("sending image done \n ");
                       // send lines according to toWorker[]
                       for(int k=0; k<16; k++){
-                          printf("allocating \n ");
                           // send row number of line
-                          // printf("line sent to %d \n", k);
+                          //printf("line sent to %d \n", k);
                           // toWorker[k%4] <: all_lines[k];
-                          // printf("sent line %d to worker %d\n", k, k%4);
+                          printf("sent line %d to worker %d\n", k, k%4);
                           toWorker[k%4] <: k;
                           //toWorker[k%4] :> val;
                           //c_out <: val;
