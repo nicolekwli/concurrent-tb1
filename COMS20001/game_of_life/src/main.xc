@@ -13,8 +13,8 @@
 typedef unsigned char uchar;      //using uchar as shorthand
 typedef unsigned short ushor;       //using ushor as shorthand
 
-port p_scl = XS1_PORT_1E;         //interface ports to orientation
-port p_sda = XS1_PORT_1F;
+on tile[0]: port p_scl = XS1_PORT_1E;         //interface ports to orientation
+on tile[0]: port p_sda = XS1_PORT_1F;
 
 #define FXOS8700EQ_I2C_ADDR 0x1E  //register addresses for orientation
 #define FXOS8700EQ_XYZ_DATA_CFG_REG 0x0E
@@ -177,14 +177,13 @@ void unpackBits(ushor line){
             }
         }
     }
-
     return 0x00;
 }*/
 
 
 // How this function works at the moment: goes through the lines and gets new image values
-void worker(chanend c_out, chanend fromDist){
-    ushor shiftLine = 0;
+void worker(chanend toCollect, chanend fromDist){
+    //ushor shiftLine = 0;
     uchar new_val;
     // ushor line[16];
     ushor line;
@@ -197,36 +196,47 @@ void worker(chanend c_out, chanend fromDist){
            fromDist :> image[y][x];
         }
       }
-    printf("entire image sent and received\n");
+    //printf("entire image sent and received\n");
 
     while (1){
         // get the line to be processed from distributor
-            fromDist :> line;
-            // printf("line received\n");
+            //printf("line received\n");
             fromDist :> row;
-            // printf("row received\n");
+            //printf("row received\n");
             // for (int i=0; i<16; i++){
                 //check if line is not empty (might want to keep this)
                 //if (line[n] != 0x00) {
-                    //printf("not empty");
-
                   /// unpack line and send position of bit to gameOfLifeLogic
                   for (int j=0; j<16; j++){
                     // get the bit needed in the line
-                    shiftLine |= (line >> (15-j));
-                    if ((shiftLine & 0x01) == 1){
-                        new_val = gameOfLifeLogic(image,row,j);
-                    }
-                    else new_val = shiftLine & 0x01;
-                    printf("- %u", new_val);
-                    // send new value to output
-                    c_out <: new_val;
+                    //shiftLine |= (line >> (15-j));
+                    //if ((shiftLine & 0x01) == 1){
+                    new_val = gameOfLifeLogic(image,row,j);
+                    //}
+                    //else new_val = shiftLine & 0x01;
+                    //printf("- %u", new_val);
+                    // c_out <: new_val;
+                    toCollect <: new_val;
+                    //printf("sent to collect");
                   }
                  //}
                  // printf("one line done\n");
     }
+}
 
-
+void collector(chanend fromWorker[4], chanend toOutput){
+    uchar val;
+    while (1){
+            for (int i=0; i<4; i++){
+                for (int count = 0 ; count < 15; count++){
+                    fromWorker[i] :> val;
+                    //printf("collected from worker %d %u \n", i, val);
+                    //printf("- %u", val);
+                    toOutput <: val;
+                }
+                //printf("\n");
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -271,16 +281,17 @@ void DataInStream(char infname[], chanend c_out)
 //
 /////////////////////////////////////////////////////////////////////////////////////////
 //void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker)
-void distributor(chanend c_in, chanend fromAcc, chanend toWorker)
+void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
 {
  // uchar val;
  // uchar new_val=0xFF;
   uchar image[16][16];
+  uchar val;
 
   //Starting up and wait for tilting of the xCore-200 Explorer
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
- // printf( "Waiting for Board Tilt...\n" );
- // fromAcc :> int value;
+  printf( "Waiting for Board Tilt...\n" );
+  fromAcc :> int value;
 
   //Read in and do something with your image values..
   //This just inverts every pixel, but you should
@@ -302,17 +313,16 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker)
     * 2.send values/lines/grid to workers
     * 3.get result from workers
     */
-  while(1){
+  //while(1){
       ushor all_lines[16]; //this is a list of all packed line
       ushor linesToBeProcessed[16];
       ushor line; //this is basically the packed line
 
       //to get the list all_lines[]
-      for(int k=0; k<16; k++){
+      /*for(int k=0; k<16; k++){
          line = packBits(image, k);
          all_lines[k] = line;
-         //can do this: all_lines[k]=packBits(image, k);
-      }
+      }*/
 
       //to remove empty lines with all 0s
       /*for(int l=0; l<16; l++){
@@ -323,24 +333,33 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker)
       }*/
 
       // send image
+      // MODIFY: should send image as only the lines the workers should deal with
+      // should also send an extra top and bottom row
       for( int y = 0; y < 16; y++ ) {   //go through all lines
         for( int x = 0; x < 16; x++ ) { //go through each pixel per line
          // c_in :> val;                    //read the pixel value
          // image[y][x] = val;              //[height][width]
-          toWorker <: image[y][x];
+          toWorker[0] <: image[y][x];
+          toWorker[1] <: image[y][x];
+          toWorker[2] <: image[y][x];
+          toWorker[3] <: image[y][x];
         }
       }
 
       for(int k=0; k<16; k++){
-         toWorker <: all_lines[k];
-         toWorker <: k;
-      }
-
-      // send line to process
-      // send row number of line
+           // send lines according to toWorker[]
+           // send line to process
+           // send row number of line
+           // printf("line sent to %d \n", k);
+           // toWorker[k%4] <: all_lines[k];
+           // printf("sent line %d to worker %d\n", k, k%4);
+           toWorker[k%4] <: k;
+           //toWorker[k%4] :> val;
+           //c_out <: val;
+        }
 
       //worker(image, linesToBeProcessed, 0, c_out);
-  }
+  //}
   printf( "\nOne processing round completed...\n" );
 }
 
@@ -366,10 +385,11 @@ void DataOutStream(char outfname[], chanend c_in)
   for( int y = 0; y < IMHT; y++ ) {
     for( int x = 0; x < IMWD; x++ ) {
       c_in :> line[ x ];
+      printf( "-%4.1d ", line[ x ] ); //show image values
     }
     _writeoutline( line, IMWD );
     printf( "\n");
-   // printf( " DataOutStream: Line written...\n" );
+    //printf( " DataOutStream: Line written...\n" );
   }
 
   //Close the PGM image
@@ -433,19 +453,23 @@ int main(void) {
 
 i2c_master_if i2c[1];               //interface to orientation
 
-char infname[] = "test.pgm";     //put your input image path here
-char outfname[] = "testout.pgm"; //put your output image path here
+//char infname[] = "test.pgm";     //put your input image path here
+//char outfname[] = "testout.pgm"; //put your output image path here
 chan c_inIO, c_outIO, c_control;    //extend your channel definitions here
 chan workerChans[4];
+chan collect[4];
 
 par {
-    i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
-    orientation(i2c[0],c_control);        //client thread reading orientation data
-    DataInStream(infname, c_inIO);          //thread to read in a PGM image
-    DataOutStream(outfname, c_outIO);       //thread to write out a PGM image
-    distributor(c_inIO, c_control, workerChans[4]);//thread to coordinate work on image
+    on tile[0]: i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
+    on tile[0]: orientation(i2c[0],c_control);        //client thread reading orientation data
+    on tile[0]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
+    on tile[0]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
+    on tile[0]: distributor(c_inIO, c_control, workerChans);//thread to coordinate work on image
+    on tile[0]: collector(collect, c_outIO);
     // for loop to create workers
-    worker(c_outIO, workerChans);
+    par (int i = 0; i < 4 ; i++) {
+        on tile[1]: worker(collect[i], workerChans[i]);
+    }
   }
 
   return 0;
