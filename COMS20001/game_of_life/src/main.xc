@@ -236,6 +236,7 @@ void collector(chanend fromWorker[4], chanend toDistributor){
     char newImage[16][16];
 
     int rowCount = 0;
+    int sig = 0;
 
     while (1){
         toDistributor <: 3;
@@ -251,14 +252,17 @@ void collector(chanend fromWorker[4], chanend toDistributor){
             }
             rowCount++;
         }
-
-        // After collecting we send to the distributor
-        toDistributor <: 2;
-        for(int y = 0; y<16; y++){
-            for(int x = 0; x<16; x++){
-                toDistributor <: newImage[y][x];
-            }
+        toDistributor :> sig;
+        if (sig == 1){
+            // After collecting we send to the distributor
+                    toDistributor <: 2;
+                    for(int y = 0; y<16; y++){
+                        for(int x = 0; x<16; x++){
+                            toDistributor <: newImage[y][x];
+                        }
+                    }
         }
+
     }
 
     printf("end of collector \n ");
@@ -435,6 +439,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           //toWorker[k%4] :> val;
                           //c_out <: val;
                       }
+                      fromCollector <: 1;
                       printf("allocating lines to workers done \n");
                 }
                   //round++;
