@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "pgmIO.h"
 #include "../lib_i2c/api/i2c.h"
+//#include <errno.h>
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
@@ -15,6 +16,9 @@ typedef unsigned short ushor;       //using ushor as shorthand
 
 on tile[0]: port p_scl = XS1_PORT_1E;         //interface ports to orientation
 on tile[0]: port p_sda = XS1_PORT_1F;
+
+on tile[0] : in port buttons = XS1_PORT_4E; //port to access xCore-200 buttons
+on tile[0] : out port leds = XS1_PORT_4F;   //port to access xCore-200 LEDs
 
 #define FXOS8700EQ_I2C_ADDR 0x1E  //register addresses for orientation
 #define FXOS8700EQ_XYZ_DATA_CFG_REG 0x0E
@@ -144,7 +148,6 @@ unsigned short packBits(uchar image[16][16], int row_no){
     }
     //printf("a line: %u\n", packed_line);
     return packed_line;
-
 }
 
 void unpackBits(ushor line){
@@ -226,23 +229,33 @@ void worker(chanend toCollect, chanend fromDist){
 // Collects data each and sends to output image in order
 // I'm guessing it should be stored in an image and sent back to distributor for next round for next iteration(add code)
 // otherwise we allow the current code to run and output the image
-void collector(chanend fromWorker[4], chanend c_out){
+void collector(chanend fromWorker[4], chanend toDistributor){
     uchar val;
-    int a=0;
+   // uchar currentImage[16][16];
+    toDistributor <: 1;
+    printf("sent 1 to distributor i think \n ");
+
     while (1){
-            for (int i=0; i<4; i++){
-                for (int count = 0 ; count < 16; count++){
-                    fromWorker[i] :> val;
-                    //printf("collected from worker %d %u \n", i, val);
-                    //printf("- %u", val);
-                    c_out <: val;
-                    //printf("%d", count);
-                }
-                //printf("A IS %d\n", a);
-                a++;
-                //printf("\n");
+        for (int i=0; i<4; i++){
+            for (int count = 0 ; count < 16; count++){
+                fromWorker[i] :> val;
+                //printf("collected from worker %d %u \n", i, val);
+                //printf("- %u", val);
+
+                toDistributor <: val;
+
+                //c_out <: val;
+                //printf("%d", count);
+            }
         }
     }
+
+    printf("end of collector \n ");
+
+}
+
+void sendToDataOutStream(uchar currentImage[16][16], chanend c_out){
+   // c_out <: val;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -281,6 +294,8 @@ void DataInStream(char infname[], chanend c_out)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
+//          WRITE A PROPER DESCRIPTION HERE
+//
 // Start your implementation by changing this function to implement the game of life
 // by farming out parts of the image to worker threads who implement it...
 // Currently the function just inverts the image
@@ -290,31 +305,41 @@ void DataInStream(char infname[], chanend c_out)
 // Stores the current image
 // Send image to each worker
 // Also distributes lines to workers sequentially
-//void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker)
-void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
+void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[4], chanend fromCollector, in port fromButton)
 {
  // uchar val;
  // uchar new_val=0xFF;
-  uchar image[16][16];
+  uchar image[16][16]; //i have made this variable obsolete muahahaha
+  uchar currentImage[16][16];
+  uchar imageVal;
+  int collectorFlag = 0;
+  int buttonInput = 0;
+  int round = 1;
 
-  //Starting up and wait for tilting of the xCore-200 Explorer
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
-  printf( "Waiting for Board Tilt...\n" );
-  fromAcc :> int value;
+  //printf( "Waiting for Board Tilt...\n" );
+  //fromAcc :> int value;
 
-  //Read in and do something with your image values..
-  //This just inverts every pixel, but you should
-  //change the image according to the "Game of Life"
+  //Starting up and wait for button press of the xCore-200 Explorer
+  printf("Waiting for Button press...\n");
+  //SW1
+  while (buttonInput != 14){
+    fromButton :> buttonInput;
+  }
+  printf("Button Pressed\n");
+
   printf( "Processing...\n" );
   // Store whatever the image is in a 2D array
-    for( int y = 0; y < IMHT; y++ ) {   //go through all lines
-      for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
-       // c_in :> val;                    //read the pixel value
-       // image[y][x] = val;              //[height][width]
-        c_in :> image[y][x];
-      }
+  for( int y = 0; y < IMHT; y++ ) {   //go through all lines
+    for( int x = 0; x < IMWD; x++ ) { //go through each pixel per line
+      // c_in :> val;                    //read the pixel value
+      // image[y][x] = val;              //[height][width]
+      //c_in :> image[y][x];
+        c_in :> currentImage[y][x];
+      //currentImage[y][x] = image[y][x];     //initializing the curre
     }
-    printf( "\nProcessing image DONE...\n" );
+  }
+  printf( "\nProcessing image DONE...\n" );
 
    /*
     * WHILE LOOP SHOULD DO THIS(ish):
@@ -322,7 +347,7 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
     * 2.send values/lines/grid to workers
     * 3.get result from workers
     */
-  //while(1){
+  while(1){
       //ushor all_lines[16]; //this is a list of all packed line
       //ushor linesToBeProcessed[16];
       //ushor line; //this is basically the packed line
@@ -334,6 +359,7 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
       }*/
 
       //to remove empty lines with all 0s
+      //this is messy; to be fixed at some point
       /*for(int l=0; l<16; l++){
         linesToBeProcessed[l] = getLineToBeProcessed(all_lines);
       }
@@ -341,35 +367,98 @@ void distributor(chanend c_in, chanend fromAcc, chanend toWorker[4])
           printf(" \n lines to be processed %d: %u\n", a, linesToBeProcessed[a]);
       }*/
 
-      // send image
-      // MODIFY: should send image as only the lines the workers should deal with
-      // should also send an extra top and bottom row
-      for( int y = 0; y < 16; y++ ) {   //go through all lines
-        for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-         // c_in :> val;                    //read the pixel value
-         // image[y][x] = val;              //[height][width]
-          toWorker[0] <: image[y][x];
-          toWorker[1] <: image[y][x];
-          toWorker[2] <: image[y][x];
-          toWorker[3] <: image[y][x];
-        }
+      select {
+         /* case fromButton :> buttonInput:
+              fromButton :> buttonInput
+              if(buttonInput == 13){
+                 printf("Current round is: %d\n");
+                 //leds <: 2;
+                 //sendToDataOutStream(currentImage, c_out);
+                 // displays the current image
+                 for(int y = 0; y<16; y++){
+                   for(int x = 0; x<16; x++){
+                       c_out <: currentImage[y][x];
+                   }
+                 }
+              }
+              else printf("Incorrect button");
+              break;
+        */
+          case fromCollector :> collectorFlag:
+              if (collectorFlag == 1) {
+                  printf("\n Processing round %d... \n", round);
+
+                  if (round > 1) {
+                      // recieve current image
+                                        for(int y = 0; y<16; y++){
+                                            printf("HI IM HERE AT LEAST \n ");
+
+                                            for(int x = 0; x<16; x++){
+                                                printf("hello ITS ME \n ");
+
+                                                printf("recieving image \n");
+                                                fromCollector :> imageVal;
+                                                currentImage[y][x] = imageVal;
+                                            }
+                                        }
+
+                                        printf("image recieved \n ");
+                  }
+
+
+                  // split image and send to workers
+                  // MODIFY: should send image as only the lines the workers should deal with
+                  // should also send an extra top and bottom row
+                  for( int y = 0; y < 16; y++ ) {   //go through all lines
+                      for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                          toWorker[0] <: currentImage[y][x];
+                          toWorker[1] <: currentImage[y][x];
+                          toWorker[2] <: currentImage[y][x];
+                          toWorker[3] <: currentImage[y][x];
+                      }
+                  }
+
+                  printf("sending image done \n ");
+
+
+                  // send lines according to toWorker[]
+                  for(int k=0; k<16; k++){
+                      printf("allocating \n ");
+
+                      // send line to process
+                      // send row number of line
+                      // printf("line sent to %d \n", k);
+                      // toWorker[k%4] <: all_lines[k];
+                      // printf("sent line %d to worker %d\n", k, k%4);
+                      toWorker[k%4] <: k;
+                      //toWorker[k%4] :> val;
+                      //c_out <: val;
+                  }
+                  printf("allocating lines to workers \n");
+
+                  printf("end of if \n ");
+
+
+                  round++;
+              } //  end of if collectorFlag
+
+              else printf("hi something happens idk \n");
+
+              break;
       }
 
-      for(int k=0; k<16; k++){
-           // send lines according to toWorker[]
-           // send line to process
-           // send row number of line
-           // printf("line sent to %d \n", k);
-           // toWorker[k%4] <: all_lines[k];
-           // printf("sent line %d to worker %d\n", k, k%4);
-           toWorker[k%4] <: k;
-           //toWorker[k%4] :> val;
-           //c_out <: val;
-        }
 
       //worker(image, linesToBeProcessed, 0, c_out);
-  //}
-  //printf( "\nOne processing round completed...\n" );
+
+      printf("OUTPUT AFTER ROUND: \n");
+      for( int y = 0; y < 16; y++ ) {   //go through all lines
+          for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+             c_out <: currentImage[y][x];
+          }
+      }
+
+  } //end of while loop
+ // printf( "\nOne processing round completed... \n" );
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -394,12 +483,12 @@ void DataOutStream(char outfname[], chanend c_in)
   for( int y = 0; y < IMHT; y++ ) {
     for( int x = 0; x < IMWD; x++ ) {
       c_in :> line[ x ];
-      // printf( "-%4.1d ", line[ x ] ); //show image values
+       printf( "-%4.1d ", line[ x ] ); //show image values
       //printf("%d", x);
     }
     _writeoutline( line, IMWD );
     //printf("Y IS: %d \n", y);
-    //printf( "\n");
+    printf( "\n");
     //printf( " DataOutStream: Line written...\n" );
   }
   printf("all lines written");
@@ -470,17 +559,18 @@ i2c_master_if i2c[1];               //interface to orientation
 chan c_inIO, c_outIO, c_control;    //extend your channel definitions here
 chan workerChans[4];
 chan collect[4];
+chan ColtoDist; //change this nameeeeeeeeee
 
 par {
     on tile[0]: i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
     on tile[0]: orientation(i2c[0],c_control);        //client thread reading orientation data
-    on tile[0]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
-    on tile[0]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
-    on tile[0]: distributor(c_inIO, c_control, workerChans);//thread to coordinate work on image
-    on tile[0]: collector(collect, c_outIO);
+    on tile[1]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
+    on tile[1]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
+    on tile[0]: distributor(c_inIO, c_outIO, c_control, workerChans, ColtoDist, buttons); //thread to coordinate work on image
+    on tile[0]: collector(collect, ColtoDist);
     // for loop to create workers
     par (int i = 0; i < 4 ; i++) {
-        on tile[1]: worker(collect[i], workerChans[i]);
+        on tile[0]: worker(collect[i], workerChans[i]);
     }
   }
 
