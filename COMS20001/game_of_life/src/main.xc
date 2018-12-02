@@ -231,21 +231,32 @@ void worker(chanend toCollect, chanend fromDist){
 // otherwise we allow the current code to run and output the image
 void collector(chanend fromWorker[4], chanend toDistributor){
     uchar val;
+
    // uchar currentImage[16][16];
-    toDistributor <: 1;
-    printf("sent 1 to distributor i think \n ");
+    char newImage[16][16];
+
+    int rowCount = 0;
 
     while (1){
+        toDistributor <: 3;
         for (int i=0; i<4; i++){
             for (int count = 0 ; count < 16; count++){
                 fromWorker[i] :> val;
+                newImage[rowCount][count] = val;
                 //printf("collected from worker %d %u \n", i, val);
                 //printf("- %u", val);
-
-                toDistributor <: val;
-
+                // toDistributor <: val;
                 //c_out <: val;
                 //printf("%d", count);
+            }
+            rowCount++;
+        }
+
+        // After collecting we send to the distributor
+        toDistributor <: 2;
+        for(int y = 0; y<16; y++){
+            for(int x = 0; x<16; x++){
+                toDistributor <: newImage[y][x];
             }
         }
     }
@@ -322,7 +333,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 
   //Starting up and wait for button press of the xCore-200 Explorer
   printf("Waiting for Button press...\n");
-  //SW1
+  //SW1 - this needs to be changed
   while (buttonInput != 14){
     fromButton :> buttonInput;
   }
@@ -385,63 +396,48 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
               break;
         */
           case fromCollector :> collectorFlag:
-              if (collectorFlag == 1) {
+              if (collectorFlag == 2) {
                   printf("\n Processing round %d... \n", round);
 
-                  if (round > 1) {
+                  //if (round > 1) {
                       // recieve current image
-                                        for(int y = 0; y<16; y++){
-                                            printf("HI IM HERE AT LEAST \n ");
-
-                                            for(int x = 0; x<16; x++){
-                                                printf("hello ITS ME \n ");
-
-                                                printf("recieving image \n");
-                                                fromCollector :> imageVal;
-                                                currentImage[y][x] = imageVal;
-                                            }
-                                        }
-
-                                        printf("image recieved \n ");
-                  }
-
-
-                  // split image and send to workers
-                  // MODIFY: should send image as only the lines the workers should deal with
-                  // should also send an extra top and bottom row
-                  for( int y = 0; y < 16; y++ ) {   //go through all lines
-                      for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-                          toWorker[0] <: currentImage[y][x];
-                          toWorker[1] <: currentImage[y][x];
-                          toWorker[2] <: currentImage[y][x];
-                          toWorker[3] <: currentImage[y][x];
+                        for(int y = 0; y<16; y++){
+                            for(int x = 0; x<16; x++){
+                                printf("recieving image \n");
+                                fromCollector :> imageVal;
+                                currentImage[y][x] = imageVal;
+                            }
+                        }
+                        printf("image recieved \n ");
+                  //}
+              }
+                else if (collectorFlag = 3){
+                    // split image and send to workers
+                      // MODIFY: should send image as only the lines the workers should deal with
+                      // should also send an extra top and bottom row
+                      for( int y = 0; y < 16; y++ ) {   //go through all lines
+                          for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                              toWorker[0] <: currentImage[y][x];
+                              toWorker[1] <: currentImage[y][x];
+                              toWorker[2] <: currentImage[y][x];
+                              toWorker[3] <: currentImage[y][x];
+                          }
                       }
-                  }
-
-                  printf("sending image done \n ");
-
-
-                  // send lines according to toWorker[]
-                  for(int k=0; k<16; k++){
-                      printf("allocating \n ");
-
-                      // send line to process
-                      // send row number of line
-                      // printf("line sent to %d \n", k);
-                      // toWorker[k%4] <: all_lines[k];
-                      // printf("sent line %d to worker %d\n", k, k%4);
-                      toWorker[k%4] <: k;
-                      //toWorker[k%4] :> val;
-                      //c_out <: val;
-                  }
-                  printf("allocating lines to workers \n");
-
-                  printf("end of if \n ");
-
-
-                  round++;
-              } //  end of if collectorFlag
-
+                      printf("sending image done \n ");
+                      // send lines according to toWorker[]
+                      for(int k=0; k<16; k++){
+                          printf("allocating \n ");
+                          // send row number of line
+                          // printf("line sent to %d \n", k);
+                          // toWorker[k%4] <: all_lines[k];
+                          // printf("sent line %d to worker %d\n", k, k%4);
+                          toWorker[k%4] <: k;
+                          //toWorker[k%4] :> val;
+                          //c_out <: val;
+                      }
+                      printf("allocating lines to workers done \n");
+                }
+                  //round++;
               else printf("hi something happens idk \n");
 
               break;
