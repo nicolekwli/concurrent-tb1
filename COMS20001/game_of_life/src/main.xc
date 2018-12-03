@@ -193,14 +193,9 @@ void worker(chanend toCollect, chanend fromDist){
     // ushor line[16];
     //ushor line;
     int row;
-
     char image[16][16];
 
-
     while (1){
-
-        //printf("START OF WORKER");
-        //fromDist <: 4;
         // get image
             for( int y = 0; y < 16; y++ ) {   //go through all lines
                 for( int x = 0; x < 16; x++ ) { //go through each pixel per line
@@ -208,12 +203,9 @@ void worker(chanend toCollect, chanend fromDist){
                 }
               }
             //printf("entire image sent and received\n");
-        // get the line to be processed from distributor
-            //printf("WAITING TO RECEIVE LINE\n");
-
+            // get the line to be processed from distributor
             for (int  i=0 ; i<4 ; i++){
                 fromDist :> row;
-                                //printf("row received\n");
                                 // for (int i=0; i<16; i++){
                                     //check if line is not empty (might want to keep this)
                                     //if (line[n] != 0x00) {
@@ -226,12 +218,8 @@ void worker(chanend toCollect, chanend fromDist){
                                     //}
                                     //else new_val = shiftLine & 0x01;
                                     toCollect <: new_val;
-                                    //printf("row sent to collect\n");
                                   }
             }
-
-         // indicate worker done
-         //toCollect <: 4;
                  //}
     }
 }
@@ -256,13 +244,8 @@ void collector(chanend fromWorker[4], chanend toDistributor){
                     newImage[rowCount][count] = val;
                     //printf("collected from worker %d count %d: %u \n", i,count,  val);
                     //printf("- %u", val);
-                    // toDistributor <: val;
-                    //c_out <: val;
                     //printf("%d", count);
-
                 }
-                //fromWorker[i] :> workerDone;
-                //printf("WORKER IS DONE");
                 rowCount++;
             }
         }
@@ -277,7 +260,6 @@ void collector(chanend fromWorker[4], chanend toDistributor){
                         }
                     }
         }
-        //printf("an end of collector \n ");
     }
 }
 
@@ -340,7 +322,6 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   uchar currentImage[16][16];
   uchar imageVal;
   int collectorFlag = 0;
-  int workerFlag = 0;
   int buttonInput = 0;
   int round = 1;
 
@@ -408,14 +389,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                  }
               }
               else printf("Incorrect button");
-              break;
-        */
-          /*printf("OUTPUT AFTER ROUND: \n");
-                for( int y = 0; y < 16; y++ ) {   //go through all lines
-                    for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-                       c_out <: currentImage[y][x];
-                    }
-                }*/
+              break;*/
           case fromCollector :> collectorFlag:
               if (collectorFlag == 2) {
                   printf("\n Processing round %d... \n", round);
@@ -438,11 +412,6 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   //}
               }
                 else if (collectorFlag == 3){
-                    // printf("FLAG 3 COLLECTED\n");
-                    /*for (int j=0; j<4; j++){
-                        toWorker[j] :> workerFlag;
-                    }*/
-
                     // split image and send to workers
                       // MODIFY: should send image as only the lines the workers should deal with
                       // should also send an extra top and bottom row
@@ -455,19 +424,14 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           }
                       }
                       printf("sending image done \n ");
-                      // send lines according to toWorker[]
-
                       for(int k=0; k<16; k++){
                           // send row number of line
-                          //printf("line sent to %d \n", k);
                           // toWorker[k%4] <: all_lines[k];
-                          printf("sent line %d to worker %d\n", k, k%4);
+                          // printf("sent line %d to worker %d\n", k, k%4);
                           toWorker[k%4] <: k;
                           //toWorker[k%4] :> val;
-                          //c_out <: val;
                       }
                       fromCollector <: 2;
-                      printf("allocating lines to workers done \n");
                 }
                   //round++;
               else printf("hi something happens idk \n");
@@ -495,7 +459,6 @@ void DataOutStream(char outfname[], chanend c_in)
               printf( "DataOutStream: Error opening %s\n.", outfname );
               return;
               }
-
               //Compile each line of the image and write the image line-by-line
               for( int y = 0; y < IMHT; y++ ) {
               for( int x = 0; x < IMWD; x++ ) {
@@ -514,7 +477,6 @@ void DataOutStream(char outfname[], chanend c_in)
               _closeoutpgm();
               printf( "\nDataOutStream: Done...\n" );
   }
-
   return;
 }
 
@@ -544,7 +506,6 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
 
   //Probe the orientation x-axis forever
   while (1) {
-
     //check until new orientation data is available
     do {
       status_data = i2c.read_reg(FXOS8700EQ_I2C_ADDR, FXOS8700EQ_DR_STATUS, result);
@@ -561,7 +522,6 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
       }
     }
   }
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
