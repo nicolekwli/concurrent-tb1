@@ -204,10 +204,13 @@ void worker(chanend toCollect, chanend fromDist){
     // ushor line[16];
     //ushor line;
     int row;
-    char image[16][16];
+    char image[16][16]; //shouldnt this be uchar
+    int pause = 0;
 
     while (1){
         // get image
+        fromDist :> pause;
+        if(pause == 0){
             for( int y = 0; y < 16; y++ ) {   //go through all lines
                 for( int x = 0; x < 16; x++ ) { //go through each pixel per line
                    fromDist :> image[y][x];
@@ -232,8 +235,10 @@ void worker(chanend toCollect, chanend fromDist){
                                   }
             }
                  //}
+        }
     }
-}
+
+} //end of worker()
 
 // Collects data each and sends to output image in order
 // I'm guessing it should be stored in an image and sent back to distributor for next round for next iteration(add code)
@@ -344,6 +349,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   int buttonInput = 0;
   int round = 1;
   int tilted = 0;
+  int pause = 0;
 
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
   //printf( "Waiting for Board Tilt...\n" );
@@ -356,6 +362,13 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     fromButtonL :> buttonInput;
     //exits the loop when buttonInput == 14
   }
+
+  //FOR PAUSING: put this somewhere appropriate
+  for(int i=0; i<4; i++){
+                       toWorker[i] <: 1;
+                   }
+
+
   printf("Button Pressed\n");
   toLED <: 4; //green
   printf( "Processing...\n" );
@@ -418,6 +431,11 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                  printf("Board Tilted... \n");
 
                  // PAUSE GAME HERE SOMEHOW
+                 // SENDING 1 AS PAUSE TO ALL WORKERS
+                 for(int i=0; i<4; i++){
+                     toWorker[i] <: 1;
+                 }
+
                  printf("Paused. \n");
                  toLED <: 8; //red
 
