@@ -314,7 +314,7 @@ void DataInStream(char infname[], chanend c_out)
 // Stores the current image
 // Send image to each worker
 // Also distributes lines to workers sequentially
-void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[4], chanend fromCollector, in port fromButton)
+void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[4], chanend fromCollector, in port fromButton, out port toLED)
 {
  // uchar val;
  // uchar new_val=0xFF;
@@ -331,12 +331,13 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 
   //Starting up and wait for button press of the xCore-200 Explorer
   printf("Waiting for Button press...\n");
-  //SW1 - this needs to be changed
+
   while (buttonInput != 14){
     fromButton :> buttonInput;
+    //exits the loop when buttonInput == 14
   }
   printf("Button Pressed\n");
-
+  toLED <: 4; //green
   printf( "Processing...\n" );
   // Store whatever the image is in a 2D array
   for( int y = 0; y < IMHT; y++ ) {   //go through all lines
@@ -356,8 +357,9 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     * 2.send values/lines/grid to workers
     * 3.get result from workers
     */
+  buttonInput = 0;
   while(1){
-      printf("waiting for select\n");
+
       //ushor all_lines[16]; //this is a list of all packed line
       //ushor linesToBeProcessed[16];
       //ushor line; //this is basically the packed line
@@ -375,21 +377,22 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
       }*/
 
       select {
-         /* case fromButton :> buttonInput:
-              fromButton :> buttonInput
-              if(buttonInput == 13){
-                 printf("Current round is: %d\n");
-                 //leds <: 2;
-                 //sendToDataOutStream(currentImage, c_out);
+         case fromButton :> buttonInput:
+            printf("waiting for button!!! \n");
+               if(buttonInput == 13){
+                 printf("Current round is: %d \n", round);
+                 toLED <: 2;
                  // displays the current image
                  for(int y = 0; y<16; y++){
                    for(int x = 0; x<16; x++){
                        c_out <: currentImage[y][x];
                    }
                  }
-              }
-              else printf("Incorrect button");
-              break;*/
+                 toLED <: 0;
+               }
+               else break;
+             break;
+
           case fromCollector :> collectorFlag:
               if (collectorFlag == 2) {
                   printf("\n Processing round %d... \n", round);
@@ -402,17 +405,19 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                                 currentImage[y][x] = imageVal;
                             }
                         }
-                        printf("image recieved \n ");
-                        printf("OUTPUT AFTER ROUND: \n");
-                            for( int y = 0; y < 16; y++ ) {   //go through all lines
-                                for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-                                   c_out <: currentImage[y][x];
-                                }
-                            }
+                       // printf("image recieved \n ");
+                        //printf("OUTPUT AFTER ROUND: \n");
+                          //  for( int y = 0; y < 16; y++ ) {   //go through all lines
+                            //    for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                              //     c_out <: currentImage[y][x];
+                               // }
+                            //}
                   //}
               }
                 else if (collectorFlag == 3){
-                    // split image and send to workers
+                    //put flashing LED here
+
+                      // split image and send to workers
                       // MODIFY: should send image as only the lines the workers should deal with
                       // should also send an extra top and bottom row
                       for( int y = 0; y < 16; y++ ) {   //go through all lines
@@ -423,7 +428,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                               toWorker[3] <: currentImage[y][x];
                           }
                       }
-                      printf("sending image done \n ");
+                     // printf("sending image done \n ");
                       for(int k=0; k<16; k++){
                           // send row number of line
                           // toWorker[k%4] <: all_lines[k];
@@ -432,8 +437,8 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           //toWorker[k%4] :> val;
                       }
                       fromCollector <: 2;
+                      round++;
                 }
-                  //round++;
               else printf("hi something happens idk \n");
               break;
       }
@@ -545,7 +550,7 @@ par {
     on tile[0]: orientation(i2c[0],c_control);        //client thread reading orientation data
     on tile[1]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
     on tile[1]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
-    on tile[0]: distributor(c_inIO, c_outIO, c_control, workerChans, ColtoDist, buttons); //thread to coordinate work on image
+    on tile[0]: distributor(c_inIO, c_outIO, c_control, workerChans, ColtoDist, buttons, leds); //thread to coordinate work on image
     on tile[0]: collector(collect, ColtoDist);
     // for loop to create workers
     par (int i = 0; i < 4 ; i++) {
