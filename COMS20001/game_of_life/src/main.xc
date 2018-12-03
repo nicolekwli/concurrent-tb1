@@ -195,34 +195,43 @@ void worker(chanend toCollect, chanend fromDist){
     int row;
 
     char image[16][16];
-    // get image
-    for( int y = 0; y < 16; y++ ) {   //go through all lines
-        for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-           fromDist :> image[y][x];
-        }
-      }
-    //printf("entire image sent and received\n");
+
 
     while (1){
+
+        //printf("START OF WORKER");
+        //fromDist <: 4;
+        // get image
+            for( int y = 0; y < 16; y++ ) {   //go through all lines
+                for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                   fromDist :> image[y][x];
+                }
+              }
+            //printf("entire image sent and received\n");
         // get the line to be processed from distributor
-            //printf("line received\n");
-            fromDist :> row;
-            //printf("row received\n");
-            // for (int i=0; i<16; i++){
-                //check if line is not empty (might want to keep this)
-                //if (line[n] != 0x00) {
-                  /// unpack line and send position of bit to gameOfLifeLogic
-                  for (int j=0; j<16; j++){
-                    // get the bit needed in the line
-                    //shiftLine |= (line >> (15-j));
-                    //if ((shiftLine & 0x01) == 1){
-                    new_val = gameOfLifeLogic(image,row,j);
-                    //}
-                    //else new_val = shiftLine & 0x01;
-                    // c_out <: new_val;
-                    toCollect <: new_val;
-                    //printf("row sent to collect\n");
-                  }
+            //printf("WAITING TO RECEIVE LINE\n");
+
+            for (int  i=0 ; i<4 ; i++){
+                fromDist :> row;
+                                //printf("row received\n");
+                                // for (int i=0; i<16; i++){
+                                    //check if line is not empty (might want to keep this)
+                                    //if (line[n] != 0x00) {
+                                      /// unpack line and send position of bit to gameOfLifeLogic
+                                  for (int j=0; j<16; j++){
+                                    // get the bit needed in the line
+                                    //shiftLine |= (line >> (15-j));
+                                    //if ((shiftLine & 0x01) == 1){
+                                    new_val = gameOfLifeLogic(image,row,j);
+                                    //}
+                                    //else new_val = shiftLine & 0x01;
+                                    toCollect <: new_val;
+                                    //printf("row sent to collect\n");
+                                  }
+            }
+
+         // indicate worker done
+         //toCollect <: 4;
                  //}
     }
 }
@@ -232,32 +241,34 @@ void worker(chanend toCollect, chanend fromDist){
 // otherwise we allow the current code to run and output the image
 void collector(chanend fromWorker[4], chanend toDistributor){
     uchar val;
-
-   // uchar currentImage[16][16];
     char newImage[16][16];
-
-    int rowCount = 0;
+    int rowCount;
     int sig = 0;
 
     while (1){
+        rowCount = 0;
         toDistributor <: 3;
+        //printf("to distributor 3 sent \n ");
         for (int k=0; k<4; k++){
             for (int i=0; i<4; i++){
                 for (int count = 0 ; count < 16; count++){
                     fromWorker[i] :> val;
                     newImage[rowCount][count] = val;
-                    printf("collected from worker %d count %d: %u \n", i,count,  val);
-                    printf("- %u", val);
+                    //printf("collected from worker %d count %d: %u \n", i,count,  val);
+                    //printf("- %u", val);
                     // toDistributor <: val;
                     //c_out <: val;
                     //printf("%d", count);
+
                 }
+                //fromWorker[i] :> workerDone;
+                //printf("WORKER IS DONE");
                 rowCount++;
             }
         }
 
         toDistributor :> sig;
-        if (sig == 1){
+        if (sig == 2){
             // After collecting we send to the distributor
                     toDistributor <: 2;
                     for(int y = 0; y<16; y++){
@@ -266,11 +277,8 @@ void collector(chanend fromWorker[4], chanend toDistributor){
                         }
                     }
         }
-
+        //printf("an end of collector \n ");
     }
-
-    printf("end of collector \n ");
-
 }
 
 void sendToDataOutStream(uchar currentImage[16][16], chanend c_out){
@@ -332,6 +340,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   uchar currentImage[16][16];
   uchar imageVal;
   int collectorFlag = 0;
+  int workerFlag = 0;
   int buttonInput = 0;
   int round = 1;
 
@@ -367,6 +376,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     * 3.get result from workers
     */
   while(1){
+      printf("waiting for select\n");
       //ushor all_lines[16]; //this is a list of all packed line
       //ushor linesToBeProcessed[16];
       //ushor line; //this is basically the packed line
@@ -381,9 +391,6 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
       //this is messy; to be fixed at some point
       /*for(int l=0; l<16; l++){
         linesToBeProcessed[l] = getLineToBeProcessed(all_lines);
-      }
-      for(int a=0; a<16; a++){
-          printf(" \n lines to be processed %d: %u\n", a, linesToBeProcessed[a]);
       }*/
 
       select {
@@ -403,24 +410,39 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
               else printf("Incorrect button");
               break;
         */
+          /*printf("OUTPUT AFTER ROUND: \n");
+                for( int y = 0; y < 16; y++ ) {   //go through all lines
+                    for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                       c_out <: currentImage[y][x];
+                    }
+                }*/
           case fromCollector :> collectorFlag:
               if (collectorFlag == 2) {
                   printf("\n Processing round %d... \n", round);
-
                   //if (round > 1) {
                       // recieve current image
                         for(int y = 0; y<16; y++){
                             for(int x = 0; x<16; x++){
-                                printf("recieving image \n");
+                                //printf("recieving image \n");
                                 fromCollector :> imageVal;
                                 currentImage[y][x] = imageVal;
                             }
                         }
                         printf("image recieved \n ");
+                        printf("OUTPUT AFTER ROUND: \n");
+                            for( int y = 0; y < 16; y++ ) {   //go through all lines
+                                for( int x = 0; x < 16; x++ ) { //go through each pixel per line
+                                   c_out <: currentImage[y][x];
+                                }
+                            }
                   //}
               }
                 else if (collectorFlag == 3){
-                    //printf("FLAG 3 COLLECTED\n");
+                    // printf("FLAG 3 COLLECTED\n");
+                    /*for (int j=0; j<4; j++){
+                        toWorker[j] :> workerFlag;
+                    }*/
+
                     // split image and send to workers
                       // MODIFY: should send image as only the lines the workers should deal with
                       // should also send an extra top and bottom row
@@ -434,6 +456,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                       }
                       printf("sending image done \n ");
                       // send lines according to toWorker[]
+
                       for(int k=0; k<16; k++){
                           // send row number of line
                           //printf("line sent to %d \n", k);
@@ -443,25 +466,13 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           //toWorker[k%4] :> val;
                           //c_out <: val;
                       }
-                      fromCollector <: 1;
+                      fromCollector <: 2;
                       printf("allocating lines to workers done \n");
                 }
                   //round++;
               else printf("hi something happens idk \n");
-
               break;
       }
-
-
-      //worker(image, linesToBeProcessed, 0, c_out);
-
-      printf("OUTPUT AFTER ROUND: \n");
-      for( int y = 0; y < 16; y++ ) {   //go through all lines
-          for( int x = 0; x < 16; x++ ) { //go through each pixel per line
-             c_out <: currentImage[y][x];
-          }
-      }
-
   } //end of while loop
  // printf( "\nOne processing round completed... \n" );
 }
@@ -477,30 +488,33 @@ void DataOutStream(char outfname[], chanend c_in)
   uchar line[ IMWD ];
 
   //Open PGM file
-  printf( "DataOutStream: Start...\n" );
-  res = _openoutpgm( outfname, IMWD, IMHT );
-  if( res ) {
-    printf( "DataOutStream: Error opening %s\n.", outfname );
-    return;
+  while (1){
+      printf( "DataOutStream: Start...\n" );
+              res = _openoutpgm( outfname, IMWD, IMHT );
+              if( res ) {
+              printf( "DataOutStream: Error opening %s\n.", outfname );
+              return;
+              }
+
+              //Compile each line of the image and write the image line-by-line
+              for( int y = 0; y < IMHT; y++ ) {
+              for( int x = 0; x < IMWD; x++ ) {
+                c_in :> line[ x ];
+                 printf( "-%4.1d ", line[ x ] ); //show image values
+                //printf("%d", x);
+              }
+              _writeoutline( line, IMWD );
+              //printf("Y IS: %d \n", y);
+              printf( "\n");
+              //printf( " DataOutStream: Line written...\n" );
+              }
+              printf("all lines written");
+
+              //Close the PGM image
+              _closeoutpgm();
+              printf( "\nDataOutStream: Done...\n" );
   }
 
-  //Compile each line of the image and write the image line-by-line
-  for( int y = 0; y < IMHT; y++ ) {
-    for( int x = 0; x < IMWD; x++ ) {
-      c_in :> line[ x ];
-       printf( "-%4.1d ", line[ x ] ); //show image values
-      //printf("%d", x);
-    }
-    _writeoutline( line, IMWD );
-    //printf("Y IS: %d \n", y);
-    printf( "\n");
-    //printf( " DataOutStream: Line written...\n" );
-  }
-  printf("all lines written");
-
-  //Close the PGM image
-  _closeoutpgm();
-  printf( "\nDataOutStream: Done...\n" );
   return;
 }
 
