@@ -205,34 +205,40 @@ void worker(chanend toCollect, chanend fromDist){
     //ushor line;
     int row;
     char image[16][16]; //shouldnt this be uchar
-    int pause = 0;
+    int pause = 9;
 
     while (1){
         // get image
         fromDist :> pause;
-        if(pause == 0){
+        printf("pause is received");
+
+        if(pause == 9){
+            printf("\n pause apparently is 9");
             for( int y = 0; y < 16; y++ ) {   //go through all lines
                 for( int x = 0; x < 16; x++ ) { //go through each pixel per line
                    fromDist :> image[y][x];
                 }
               }
-            //printf("entire image sent and received\n");
+            printf("entire image sent and received\n");
             // get the line to be processed from distributor
             for (int  i=0 ; i<4 ; i++){
                 fromDist :> row;
-                                // for (int i=0; i<16; i++){
-                                    //check if line is not empty (might want to keep this)
-                                    //if (line[n] != 0x00) {
-                                      /// unpack line and send position of bit to gameOfLifeLogic
-                                  for (int j=0; j<16; j++){
-                                    // get the bit needed in the line
-                                    //shiftLine |= (line >> (15-j));
-                                    //if ((shiftLine & 0x01) == 1){
-                                    new_val = gameOfLifeLogic(image,row,j);
-                                    //}
-                                    //else new_val = shiftLine & 0x01;
-                                    toCollect <: new_val;
-                                  }
+                // for (int i=0; i<16; i++){
+                //check if line is not empty (might want to keep this)
+                //if (line[n] != 0x00) {
+                /// unpack line and send position of bit to gameOfLifeLogic
+                printf("Row received\n");
+                for (int j=0; j<16; j++){
+                    // get the bit needed in the line
+                    //shiftLine |= (line >> (15-j));
+                    //if ((shiftLine & 0x01) == 1){
+                    new_val = gameOfLifeLogic(image,row,j);
+                    //}
+                    //else new_val = shiftLine & 0x01;
+                    toCollect <: new_val;
+
+                }
+                printf("16 cells sent\n");
             }
                  //}
         }
@@ -348,7 +354,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   int collectorFlag = 0;
   int buttonInput = 0;
   int round = 1;
-  int tilted = 0;
+  int tilted = 0; //we use this to indicate pausing as well
   int pause = 0;
 
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
@@ -362,12 +368,6 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     fromButtonL :> buttonInput;
     //exits the loop when buttonInput == 14
   }
-
-  //FOR PAUSING: put this somewhere appropriate
-  for(int i=0; i<4; i++){
-                       toWorker[i] <: 1;
-                   }
-
 
   printf("Button Pressed\n");
   toLED <: 4; //green
@@ -390,6 +390,12 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     * 2.send values/lines/grid to workers
     * 3.get result from workers
     */
+
+  //FOR PAUSING: put this somewhere appropriate
+  // telling the workers that pause is 0
+  /*for(int i=0; i<4; i++){
+    toWorker[i] <: 0;
+  }*/
 
   while(1){
 
@@ -430,20 +436,29 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
              if (tilted == 1) {
                  printf("Board Tilted... \n");
 
-                 // PAUSE GAME HERE SOMEHOW
-                 // SENDING 1 AS PAUSE TO ALL WORKERS
-                 for(int i=0; i<4; i++){
-                     toWorker[i] <: 1;
-                 }
-
-                 printf("Paused. \n");
+                 pause = 1;
                  toLED <: 8; //red
+                 printf("Paused. \n");
+
 
                  printf("------------STATUS REPORT------------\n");
                  printf("Rounds completed: %d\n", round);
                  printf("Live cells: %d\n", totalLiveCells(currentImage));
                  //printf("Time elapsed: %d\n", time);
                  printf("-------------------------------------\n");
+                 //delay_milliseconds(200);
+                 while (pause) {
+                     fromAcc <: 5;
+                     break;
+                    // toLED <: 8; //red
+                 }
+
+             }
+             else if (tilted == 0){
+                 printf("Unpaused. \n");
+
+                 toLED <: 0;
+                 pause = 0;
              }
              break;
 
@@ -463,6 +478,24 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   }
                }
               else if (collectorFlag == 3){
+                  printf("3 Colllected \n");
+
+                  // to do the pausing
+                                  if (pause == 1){ //paused
+                                      for(int i=0; i<4; i++){
+                                          toWorker[i] <: 8;
+                                      }
+                                      printf("resumes NOPE");
+                                  }
+
+                                  if (pause == 0){ //resumed
+                                      for(int i=0; i<4; i++){
+                                          toWorker[i] <: 9;
+                                      }
+                                      printf("resumes");
+                                  }
+
+
                   // split image and send to workers
                   // MODIFY: should send image as only the lines the workers should deal with
                   // should also send an extra top and bottom row
@@ -474,7 +507,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           toWorker[3] <: currentImage[y][x];
                       }
                   }
-                  // printf("sending image done \n ");
+                  printf("sending image done \n ");
                   for(int k=0; k<16; k++){
                       // send row number of line
                       // toWorker[k%4] <: all_lines[k];
@@ -482,9 +515,14 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                       toWorker[k%4] <: k;
                       //toWorker[k%4] :> val;
                   }
+                  printf("Rows all sent\n");
                   fromCollector <: 2;
+                  printf("Collector sent stuffi fr\n");
                   round++;
-                }
+                  printf("round ++ \n");
+                  fromAcc <: -5; //sending any value to say that its time to check for a tilt
+                  printf("sent to tilt\n");
+              }
 
               else printf("hi something happens idk \n");
 
@@ -544,6 +582,7 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
   i2c_regop_res_t result;
   char status_data = 0;
   int tilted = 0;
+  int dist_signal = 0;
 
   // Configure FXOS8700EQ
   result = i2c.write_reg(FXOS8700EQ_I2C_ADDR, FXOS8700EQ_XYZ_DATA_CFG_REG, 0x01);
@@ -571,13 +610,26 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
     if (!tilted) {
       if (x>30) {
         tilted = 1;
-        toDist <: 1;
-      }
-      else if (x<5) {
-        tilted = 0;
-        toDist <: 0;
+        //toDist <: 1;
       }
     }
+    // return soething to dist to make it continue
+    else {
+        if (x < 5){
+            tilted = 0;
+            //toDist <: 0;
+            printf("unpause sent");
+        }
+    }
+    printf("if tilted checked");
+    select{
+        case toDist :> dist_signal:
+            toDist <: tilted;
+            break;
+        break;
+    }
+
+
   }
 }
 
@@ -595,7 +647,7 @@ i2c_master_if i2c[1];               //interface to orientation
 chan c_inIO, c_outIO, accToD;
 chan workerChans[4];
 chan collect[4];
-chan collectorToD; //change this nameeeeeeeeee
+chan collectorToD;
 chan buttonToD;
 
 par {
