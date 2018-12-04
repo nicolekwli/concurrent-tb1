@@ -8,8 +8,8 @@
 #include "../lib_i2c/api/i2c.h"
 //#include <errno.h>
 
-#define  IMHT 16                  //image height
-#define  IMWD 16                  //image width
+#define  IMHT 256                  //image height
+#define  IMWD 256                  //image width
 
 typedef unsigned char uchar;      //using uchar as shorthand
 typedef unsigned short ushor;       //using ushor as shorthand
@@ -290,7 +290,7 @@ void collector(chanend fromWorker[8], chanend toDistributor){
         rowCount = 0;
         toDistributor <: 3;
         //printf("to distributor 3 sent \n ");
-        // what is this /4 /8 8
+        // what is this:  /number of workers
         for (int k=0; k<IMHT/8; k++){
             // number of workers
             for (int i=0; i<8; i++){
@@ -299,7 +299,7 @@ void collector(chanend fromWorker[8], chanend toDistributor){
                     //for (int count = 0 ; count < 8; count++){
                         fromWorker[i] :> val;
                         newImage[rowCount][j] = val;
-                        printf("collected from worker %d count : %u \n", i,  val);
+                        //printf("collected from worker %d count : %u \n", i,  val);
                         //printf("- %u", val);
                         //printf("%d", count);
                     //}
@@ -319,7 +319,7 @@ void collector(chanend fromWorker[8], chanend toDistributor){
                         }
                     }
         }
-        printf("Image sent back to dist\n");
+        // printf("Image sent back to dist\n");
     }
 }
 
@@ -552,18 +552,18 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                         toWorker[7] <: currentImage[y][x];
                       }
                   }
-                  printf("sending image done \n ");
+                  // printf("sending image done \n ");
                   // what does this send? the number of rows
                   for(int k=0; k<IMWD; k++){
                       // send row number of line
                       // toWorker[k%4] <: all_lines[k];
 
                       toWorker[k%8] <: k;
-                      printf("sent line %d to worker %d\n", k, k%8);
+                      // printf("sent line %d to worker %d\n", k, k%8);
                       //toWorker[k%4] :> val;
                   }
                   fromCollector <: 2;
-                  printf("SIGNAL SENT 2 TO COLLECTOR\n");
+                  // printf("SIGNAL SENT 2 TO COLLECTOR\n");
                   round++;
                   fromAcc <: -5; //sending any value to say that its time to check for a tilt
               }
@@ -693,7 +693,7 @@ par {
     on tile[0]: i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
     on tile[0]: orientation(i2c[0], accToD);        //client thread reading orientation data
     on tile[0]: buttonListener(buttons, buttonToD);
-    on tile[0]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
+    on tile[0]: DataInStream("256x256.pgm", c_inIO);          //thread to read in a PGM image
     on tile[0]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
     on tile[0]: distributor(c_inIO, c_outIO, accToD, workerChans, collectorToD, buttonToD, leds); //thread to coordinate work on image
     on tile[0]: collector(collect, collectorToD);
@@ -703,7 +703,7 @@ par {
         on tile[0]: worker(collect[i], workerChans[i]);
     }*/
     par{
-        on tile[1]: worker(collect[0], workerChans[0]);
+        on tile[0]: worker(collect[0], workerChans[0]);
         on tile[1]: worker(collect[1], workerChans[1]);
         on tile[1]: worker(collect[2], workerChans[2]);
         on tile[1]: worker(collect[3], workerChans[3]);
