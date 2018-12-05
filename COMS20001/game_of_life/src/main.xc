@@ -12,6 +12,7 @@
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
+#define WORKERS 1
 
 typedef unsigned char uchar;      //using uchar as shorthand
 typedef unsigned short ushor;       //using ushor as shorthand
@@ -35,7 +36,7 @@ on tile[0] : out port leds = XS1_PORT_4F;   //port to access xCore-200 LEDs
 
 //Function Prototypes
 int noOfLiveNeighbours(char image[3][IMHT/8], int i, int j);
-uchar gameOfLifeLogic(char image[IMWD/8][IMHT/8], int i, int k, int j);
+uchar gameOfLifeLogic(char image[IMWD/WORKERS + 2][IMHT/8], int i, int k, int j);
 
 
 uchar packBits(uchar newBit, int position, uchar returnByte){
@@ -45,7 +46,9 @@ uchar packBits(uchar newBit, int position, uchar returnByte){
 }
 
 uchar unpackBits(uchar byte, int pos){
+    // printf("UNPACKED BIT's BYTE: %u\n", byte);
     uchar bit = (byte >> (7-pos)) & 0x01;
+    // printf("UNPACKED BIT: %u\n", bit);
     return bit;
 }
 
@@ -55,20 +58,20 @@ uchar unpackBits(uchar byte, int pos){
 //
 /////////////////////////////////////////////////////////////////////////////////////////
 // row, byte, pos in the byte
-uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
-    int l_neighbours;
+uchar gameOfLifeLogic(uchar image[IMWD/WORKERS + 2][IMHT/8], int i, int k, int j) {
+    int l_neighbours =0;
     uchar simplifiedImage[3][IMHT/8];
     int prevRow = i-1;
     int row = i;
     int nextRow = i+1;
 
-    if (prevRow == -1){
-        prevRow = (IMHT/8)-1;
+    /*if (prevRow == -1){
+        prevRow = (IMHT/WORKERS)-1;
     }
 
-    if (nextRow == IMHT/8){
+    if (nextRow == IMHT/WORKERS){
         nextRow = 0;
-    }
+    }*/
 
     // get the three lines
     // this needs to deal with loop arounds
@@ -77,40 +80,40 @@ uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
             if (x == 0){
                 simplifiedImage[x][y]=image[prevRow][y];
             }
-            else if (x == 2){
+            else if (x == 1){
                 simplifiedImage[x][y]=image[row][y];
             }
-            else {
+            else if (x == 2){
                 simplifiedImage[x][y]=image[nextRow][y];
             }
         }
     }
 //----------------------------------------------------------------------------------------------
     l_neighbours = noOfLiveNeighbours(simplifiedImage, k , j);
-
+    //printf("LIVE NEIGHBOURS of i-%d, k-%d, j-%d: %d\n", i,k,j, l_neighbours);
     //printf("i:%d k:%d j:%d cell:%d \n", 1, 1, 1, unpackBits(image[1][1], 1));
 
 
     //cell is live
     if (unpackBits(image[i][k],j) == 1) {
-        printf("IN LIVE ");
+        // printf("IN LIVE with row %d, byte %d, bit %d\n", i,k,j);
 
         //any live cell with fewer than two live neighbours dies
         if ( l_neighbours<2 ) {
-            printf("Live <2 \n");
+            //printf("Live <2 \n");
 
             return (uchar)0x00;
         }
         //any live cell with two or three live neighbours is unaffected
         else if (( l_neighbours==2 )||( l_neighbours==3 )) {
-            printf("live 2 or 3 \n");
+            //printf("live 2 or 3 \n");
 
             return (uchar)0xFF;
             // return unpackBits(image[i][k],j); //or return 1?
         }
         //any live cell with more than three live neighbours dies
         else if ( l_neighbours>3 ) {
-            printf("live >3 \n");
+            //printf("live >3 \n");
 
             return (uchar)0x00;
         }
@@ -122,12 +125,10 @@ uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
         //any dead cell with exactly three live neighbours becomes alive
         if ( l_neighbours==3 ) {
             // printf("no. of live neighbours- cell %d: line: %d  - %d \n", j, i, l_neighbours);
-            //printf("here!!!! at %d \n", j);
             return (uchar)0xFF;
         }
         else {
            return (uchar)0x00;
-            // return unpackBits(image[i][k],j); //remains the same
         }
     }
     return 0; //this im not sure about
@@ -137,6 +138,15 @@ uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
 // i: byte, j:pos
 int noOfLiveNeighbours(uchar image[3][IMHT/8], int i, int j) {
     int live_n =0;
+    /*for (int b=0; b<3;b++){
+        printf("line %d", b);
+       for (int c=0; c<IMHT/8; c++){
+           for (int d=0; d<8; d++){
+               printf("-  %u",unpackBits(image[b][c], d));
+           }
+       }
+       printf("\n");
+    }*/
 
     // the cell will defo be image[1][i]
     int leftBytePos = i;
@@ -151,37 +161,49 @@ int noOfLiveNeighbours(uchar image[3][IMHT/8], int i, int j) {
         if (leftBytePos == 0){
             leftBytePos = IMHT/8 - 1;
         }
+        else leftBytePos = leftBytePos -1;
     }
     if (right == 8){
        right = 0;
        if (rightBytePos == IMHT/8 - 1){
            rightBytePos = 0;
        }
+       else rightBytePos = rightBytePos +1;
     }
  /* ---------------------------------------------------------------- */
-    if (unpackBits(image[1][rightBytePos], right)==1) //right side
+    if (unpackBits(image[1][rightBytePos], right)==0x01){ //right side
+        //printf("right\n");
+        live_n++;
+    }
+    if (unpackBits(image[1][leftBytePos], left)==0x01) //left side
         live_n++;
 
-    if (unpackBits(image[1][leftBytePos], left)==1) //left side
+    if (unpackBits(image[0][i], j)==0x01){ //top
+        //printf("top\n");
+        live_n++;
+    }
+    if (unpackBits(image[2][i], j)==0x01){ //bottom
+        //printf("bottom\n");
+        live_n++;
+    }
+    if (unpackBits(image[0][rightBytePos], right)==0x01) //top right
         live_n++;
 
-    if (unpackBits(image[0][i], j)==1) //top
+    if (unpackBits(image[0][leftBytePos], left)==0x01) //top left
         live_n++;
 
-    if (unpackBits(image[2][i], j)==1) //bottom
+    if (unpackBits(image[2][rightBytePos], right)==0x01)  //bottom right
         live_n++;
 
-    if (unpackBits(image[0][rightBytePos], right)==1) //top right
+    if (unpackBits(image[2][leftBytePos], left)==0x01)  //bottom left
         live_n++;
-
-    if (unpackBits(image[0][leftBytePos], left)==1) //top left
-        live_n++;
-
-    if (unpackBits(image[2][rightBytePos], right)==1)  //bottom right
-        live_n++;
-
-    if (unpackBits(image[2][leftBytePos], left)==1)  //bottom left
-        live_n++;
+    /*printf("i: %d", i  );
+    printf("j: %d", j   );
+            printf("right: %d", right);
+            printf("left: %d", left);
+            printf("leftbyte: %d", leftBytePos);
+            printf("rightbyte: %d", rightBytePos);*/
+    //printf("NUMBE OF LIVES: %d\n", live_n);
 
   return live_n;
 }
@@ -213,17 +235,23 @@ void tests(){
      *  - x - - - - - - | - x - - - - - -
      */
     uchar test[3][2];
+
     test[0][0]=0; test[1][0]=132; test[2][0]=64;
     test[0][1]=32; test[1][1]=113; test[2][1]=64;
+
 
     assert(noOfLiveNeighbours(test, 0, 5) == 0);
     assert(noOfLiveNeighbours(test, 1, 2) == 4);
     assert(noOfLiveNeighbours(test, 0, 0) == 2);
     assert(noOfLiveNeighbours(test, 1, 7) == 1);
 
+    uchar test2[3][2];
+    test2[0][0]=8; test2[1][0]=4; test2[2][0]=28;
+    assert(noOfLiveNeighbours(test2, 0, 4) == 5);
 
-    //test game of life logic
-
+    uchar test3[3][2];
+    test3[0][0]=0; test3[1][0]=8; test3[2][0]=4;
+    assert(noOfLiveNeighbours(test3, 0, 4) == 1);
 
     //test total no of live cells
     uchar test1[16][16];
@@ -275,8 +303,10 @@ void tests(){
 void worker(chanend toCollect, chanend fromDist){
     uchar new_val;
     uchar byte = 0x00;
-    uchar image[IMWD/8][IMHT/8];
+    // uchar image[IMWD/WORKERS][IMHT/8];
+    uchar image[IMWD/WORKERS + 2][IMHT/8];
     int pause = 9;
+    int row;
 
     while (1){
         // get image
@@ -286,15 +316,24 @@ void worker(chanend toCollect, chanend fromDist){
         if(pause == 9){
             // row
             // receives image
-            for( int y = 0; y < IMWD/8; y++ ) {   //go through all lines
+            for( int y = 1; y < IMWD/WORKERS + 1; y++ ) {   //go through all lines
                 // element in each row
                 for( int x = 0; x < IMHT/8; x++ ) { //go through each pixel per line
                    fromDist :> image[y][x];
                 }
               }
-            // for each row sent
-            for (int  i=0 ; i<IMHT/8 ; i++){
-                //fromDist :> row;
+            // receive two extra lines
+            for (int a=0; a< IMHT/8; a++){
+                fromDist :> image[0][a];
+            }
+            for (int b=0; b< IMHT/8; b++){
+                fromDist :> image[IMWD/WORKERS + 1][b];
+            }
+
+            // fromDist :> row;
+            // for each row sent ( that the worker should process aka 1 -> n-1)
+            for (int  i=1 ; i<IMHT/WORKERS+1 ; i++){
+
                 //check if line is not empty (might want to keep this)
                 //if (line[n] != 0x00) {
                 /// unpack line and send position of bit to gameOfLifeLogic
@@ -304,18 +343,15 @@ void worker(chanend toCollect, chanend fromDist){
                 for(int k = 0; k < IMHT/8; k++){
                     // for each element in that array
                     for (int j=0; j<8; j++){
-                        // get the bit needed in the line
-                        //shiftLine |= (line >> (15-j));
-                        //if ((shiftLine & 0x01) == 1){
-
-                        // row: the row, k: the byte in that row, j: the position of the bit
-                        new_val = gameOfLifeLogic(image,i,k,j);
+                        // i: the row, k: the byte in that row, j: the position of the bit
+                        new_val = gameOfLifeLogic(image, i,k,j);
                         //}
                         //else new_val = shiftLine & 0x01;
                         byte = packBits(new_val, j, byte);
 
                     }
                     toCollect <: byte;
+                    //printf("BYTE: %u\n", byte);
                     byte = 0x00;
                 }
             }
@@ -327,7 +363,7 @@ void worker(chanend toCollect, chanend fromDist){
 // Collects data each and sends to output image in order
 // I'm guessing it should be stored in an image and sent back to distributor for next round for next iteration(add code)
 // otherwise we allow the current code to run and output the image
-void collector(chanend fromWorker[8], chanend toDistributor){
+void collector(chanend fromWorker[WORKERS], chanend toDistributor){
     uchar val;
     char newImage[IMWD][IMHT/8];
     int rowCount;
@@ -337,15 +373,16 @@ void collector(chanend fromWorker[8], chanend toDistributor){
         rowCount = 0;
         toDistributor <: 3;
         //printf("to distributor 3 sent \n ");
-        // what is this:  each number of rows for each worler
-        for (int i=0; i<8; i++){
-            // number of workers
-            for (int k=0; k<IMHT/8; k++){
+        // what is this:  for each worker
+        for (int i=0; i<WORKERS; i++){
+
+            // get the number of row assigned to that worker
+            for (int k=0; k<IMHT/WORKERS; k++){
                 // number of bytes for each worker process
                 for (int j=0; j<IMHT/8; j++){
                     //for (int count = 0 ; count < 8; count++){
                         fromWorker[i] :> val;
-                        newImage[k + i*(IMHT/8) ][j] = val;
+                        newImage[k + i*(IMHT/WORKERS) ][j] = val;
                         //printf("collected from worker %d count : %u \n", i,  val);
                         //printf("- %u", val);
                         //printf("%d", count);
@@ -475,7 +512,7 @@ void DataInStream(char infname[], chanend c_out)
 // Stores the current image
 // Send image to each worker
 // Also distributes lines to workers sequentially
-void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[8], chanend fromCollector, chanend fromButtonL, out port toLED, chanend fromTimer)
+void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[WORKERS], chanend fromCollector, chanend fromButtonL, out port toLED, chanend fromTimer)
 {
  // uchar val;
  // uchar new_val=0xFF;
@@ -606,18 +643,18 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 
               else if (collectorFlag == 3){
                   for(int y = 0; y<IMHT; y++){
-                                     for(int x = 0; x<IMWD/8; x++){
-                                         for(int z = 0; z<8; z++){
-                                             c_out <: unpackBits(currentImage[y][x], z);
-                                         }
-                                     }
-                                   }
+                     for(int x = 0; x<IMWD/8; x++){
+                         for(int z = 0; z<8; z++){
+                             c_out <: unpackBits(currentImage[y][x], z);
+                         }
+                     }
+                   }
                   //printf("FLAG 3 COLLECTED");
                   //--------------------------------------------------------------------
                   // to do the pausing
                       if (pause == 1){ //paused
                           // add worker number global here
-                          for(int i=0; i<8; i++){
+                          for(int i=0; i<WORKERS; i++){
                               toWorker[i] <: 8;
                               fromTimer <: 2;
                               //fromTimer :> pauseStartTime;
@@ -626,7 +663,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                       }
 
                       if (pause == 0){ //resumed
-                          for(int i=0; i<8; i++){
+                          for(int i=0; i<WORKERS; i++){
                               toWorker[i] <: 9;
                               fromTimer <: 2;
                               //fromTimer :> pauseEndTime;
@@ -637,26 +674,40 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   //----------------------------------------------------------------------
                   // split image and send to workers
                   // for each worker
-                  for (int i=0; i<8; i++){
+                  for (int i=0; i<WORKERS; i++){
+
                         // number of rows
-                        for( int y = 0; y < IMHT/8; y++ ) {   //go through all lines
+                        for( int y = 0; y < IMHT/WORKERS; y++ ) {   //go through all lines
                             // elements in each row
                             for( int x = 0; x < IMWD/8; x++ ) { //go through each pixel per line
-                                toWorker[i] <: currentImage[y + i*(IMHT/8)][x];
+                                toWorker[i] <: currentImage[y + i*(IMHT/WORKERS)][x];
+                                // printf("y is %d", y);
 
                             }
                         }
-                  }
+                        // send the two extra lines
+                        for( int z = 0; z < IMWD/8; z++ ){
+                            // prev workers' line
+                            if ((i-1) == -1){
+                              toWorker[i] <: currentImage[IMHT-1][z];
+                            } else {
+                              toWorker[i] <: currentImage[IMHT/WORKERS+(i-1)*(IMHT/WORKERS)][z];
+                            }
 
+
+                        }
+                        for( int a = 0; a < IMWD/8; a++ ){
+                            // next workers' line
+                            if ((i+1) == WORKERS ){
+                                toWorker[i] <: currentImage[0][a];
+                            } else {
+                                toWorker[i] <: currentImage[(i+1)*(IMHT/WORKERS)][a];
+                            }
+                        }
+
+
+                  }
                   // printf("sending image done \n ");
-                  // what does this send? the number of rows
-                  /*for(int k=0; k<IMWD; k++){
-                      // send row number of line
-                      // toWorker[k%4] <: all_lines[k];
-                      toWorker[k%8] <: k;
-                      // printf("sent line %d to worker %d\n", k, k%8);
-                      //toWorker[k%4] :> val;
-                  }*/
                   fromCollector <: 2;
                   // printf("SIGNAL SENT 2 TO COLLECTOR\n");
                   round++;
@@ -784,8 +835,8 @@ int main(void) {
 
 i2c_master_if i2c[1];  //interface to orientation
 chan c_inIO, c_outIO, accToD;
-chan workerChans[8];
-chan collect[8];
+chan workerChans[WORKERS];
+chan collect[WORKERS];
 chan collectorToD;
 chan buttonToD;
 chan timerToD;
@@ -806,13 +857,13 @@ par {
     }*/
     par{
         on tile[0]: worker(collect[0], workerChans[0]);
-        on tile[1]: worker(collect[1], workerChans[1]);
-        on tile[1]: worker(collect[2], workerChans[2]);
+        //on tile[1]: worker(collect[1], workerChans[1]);
+        /*on tile[1]: worker(collect[2], workerChans[2]);
         on tile[1]: worker(collect[3], workerChans[3]);
         on tile[1]: worker(collect[4], workerChans[4]);
         on tile[1]: worker(collect[5], workerChans[5]);
         on tile[1]: worker(collect[6], workerChans[6]);
-        on tile[1]: worker(collect[7], workerChans[7]);
+        on tile[1]: worker(collect[7], workerChans[7]);*/
     }
   }
 
