@@ -49,8 +49,6 @@ uchar unpackBits(uchar byte, int pos){
     return bit;
 }
 
-
-
 /////////////////////////////////////////////////////////////////////////////////////////
 //
 // Functions for the Game of Life logic
@@ -89,29 +87,47 @@ uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
     }
 //----------------------------------------------------------------------------------------------
     l_neighbours = noOfLiveNeighbours(simplifiedImage, k , j);
+
+    //printf("i:%d k:%d j:%d cell:%d \n", 1, 1, 1, unpackBits(image[1][1], 1));
+
+
     //cell is live
     if (unpackBits(image[i][k],j) == 1) {
+        printf("IN LIVE ");
+
         //any live cell with fewer than two live neighbours dies
         if ( l_neighbours<2 ) {
+            printf("Live <2 \n");
+
             return (uchar)0x00;
         }
         //any live cell with two or three live neighbours is unaffected
         else if (( l_neighbours==2 )||( l_neighbours==3 )) {
-            return unpackBits(image[i][k],j); //or return 1?
+            printf("live 2 or 3 \n");
+
+            return (uchar)0xFF;
+            // return unpackBits(image[i][k],j); //or return 1?
         }
         //any live cell with more than three live neighbours dies
         else if ( l_neighbours>3 ) {
+            printf("live >3 \n");
+
             return (uchar)0x00;
         }
     }
     //cells are dead
     else if (unpackBits(image[i][k],j) == 0) {
+        //printf("IN DEAD ");
+       // printf("no. of live neighbours- cell %d: line: %d  - %d \n", j, i, l_neighbours);
         //any dead cell with exactly three live neighbours becomes alive
         if ( l_neighbours==3 ) {
+            // printf("no. of live neighbours- cell %d: line: %d  - %d \n", j, i, l_neighbours);
+            //printf("here!!!! at %d \n", j);
             return (uchar)0xFF;
         }
         else {
-            return unpackBits(image[i][k],j); //remains the same
+           return (uchar)0x00;
+            // return unpackBits(image[i][k],j); //remains the same
         }
     }
     return 0; //this im not sure about
@@ -142,7 +158,7 @@ int noOfLiveNeighbours(uchar image[3][IMHT/8], int i, int j) {
            rightBytePos = 0;
        }
     }
- /* ------------------------------------------ */
+ /* ---------------------------------------------------------------- */
     if (unpackBits(image[1][rightBytePos], right)==1) //right side
         live_n++;
 
@@ -182,7 +198,7 @@ int totalLiveCells(uchar image[IMWD][IMHT/8]){
     return live;
 }
 
-void tests() {
+void tests(){
     assert(packBits(0x00, 0, 0x00) == 0x00);
     assert(packBits(0x01, 0, 0x00) == 0x80);
     assert(packBits(0xFF, 3, 0x00) == 0x10);
@@ -191,28 +207,35 @@ void tests() {
     assert(unpackBits(0xE6, 1) == 1);
     assert(unpackBits(0xE6, 4) == 0);
 
+    //testing no. of live neighbours
+    /*  - - - - - - - - | - - x - - - - -
+     *  x - - - - x - - | - x x x - - - x
+     *  - x - - - - - - | - x - - - - - -
+     */
+    uchar test[3][2];
+    test[0][0]=0; test[1][0]=132; test[2][0]=64;
+    test[0][1]=32; test[1][1]=113; test[2][1]=64;
+
+    assert(noOfLiveNeighbours(test, 0, 5) == 0);
+    assert(noOfLiveNeighbours(test, 1, 2) == 4);
+    assert(noOfLiveNeighbours(test, 0, 0) == 2);
+    assert(noOfLiveNeighbours(test, 1, 7) == 1);
+
+
     //test game of life logic
 
-    //testing no. of live neighbours
-    // test matrix is:
-    // x - -
-    // - x' -
-    // - -
-    uchar test[3][2];
-    //test[0][0] = 1;
-    for (int p=0; p<3; p++){
-        for(int q=0; q<2; q++){
-            if((p == 0)&&(q==0))    test[p][q] = 1;
-            else test[p][q] = 0;
-            //if((p == 09)&&(q==1))    test[p][q] = 1;
-        }
-    }
-    assert(noOfLiveNeighbours(test, 0, 7) == 1);
-    //assert(noOfLiveNeighbours(uchar image[3][IMHT/8], i, j) == );
 
     //test total no of live cells
-    // assert(totalLiveCells(uchar image[IMWD][IMHT/8])== );
+    uchar test1[16][16];
 
+    for(int l=0; l<16; l++){
+        for(int m=0; m<2; m++){
+            test1[l][m]=0;
+        }
+    }
+    test1[0][0] = 128;
+   // assert(totalLiveCells(test1) == 1);
+    printf("PASSED ASSERTS\n");
 }
 
 
@@ -463,7 +486,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   int buttonInput = 0;
   int round = 1;
   int tilted = 0; //we use this to indicate pausing as well
-  int pause = 0;
+  int pause = 0, noPause = 0;
  // int timerFlag = 0;
   uint32_t startTime = 0, endTime = 0, timeElapsed = 0;
   //uint32_t pauseStartTime = 0, pauseEndTime = 0, totalPauseTime = 0;
@@ -526,29 +549,37 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 
          case fromAcc :> tilted:
              if (tilted == 1){
-                 printf("Board Tilted... \n");
-
-
                  pause = 1;
-                // timerFlag = 0; //timer should stop
-                 toLED <: 8; //red
-                 //printf("Paused. \n");
 
-                 printf("-------------STATUS REPORT-------------\n");
-                 printf("Rounds completed: %d\n", round);
-                 printf("Live cells: %d\n", totalLiveCells(currentImage));
-                 printf("Time elapsed: %d milliseconds\n", timeElapsed/100000);
-                // printf("Pause Time: %d milliseconds\n", totalPauseTime/100000);
-                 printf("---------------------------------------\n");
+                 if (round == 1){
+                     noPause = 1;
+                 }
+
+                 // timerFlag = 0; //timer should stop
+                 toLED <: 8; //red
+                // printf("Pausing... \n");
+
+                 if(noPause == 1){
+                   printf("Board Tilted... \n");
+                   printf("-------------STATUS REPORT-------------\n");
+                   printf("Rounds completed: %d\n", round);
+                   printf("Live cells: %d\n", totalLiveCells(currentImage));
+                   printf("Time elapsed: %d milliseconds\n", timeElapsed/100000);
+                   // printf("Pause Time: %d milliseconds\n", totalPauseTime/100000);
+                   printf("---------------------------------------\n");
+                 }
+
                  while (pause) {
                      fromAcc <: 5;
                      break;
                  }
+                noPause++;
              }
              else if (tilted == 0){
                  //printf("Unpaused. \n");
                  toLED <: 0;
                  pause = 0;
+                 noPause = 0;
              }
              break;
 //---------------------------------------------------------------------------------
