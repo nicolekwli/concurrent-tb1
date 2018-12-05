@@ -12,7 +12,7 @@
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
-#define WORKERS 1
+#define WORKERS 8
 
 typedef unsigned char uchar;      //using uchar as shorthand
 typedef unsigned short ushor;       //using ushor as shorthand
@@ -234,7 +234,7 @@ void tests(){
      *  x - - - - x - - | - x x x - - - x
      *  - x - - - - - - | - x - - - - - -
      */
-    uchar test[3][2];
+    /*uchar test[3][2];
 
     test[0][0]=0; test[1][0]=132; test[2][0]=64;
     test[0][1]=32; test[1][1]=113; test[2][1]=64;
@@ -260,8 +260,8 @@ void tests(){
         for(int m=0; m<2; m++){
             test1[l][m]=0;
         }
-    }
-    test1[0][0] = 128;
+    }*/
+    //test1[0][0] = 128;
    // assert(totalLiveCells(test1) == 1);
     printf("PASSED ASSERTS\n");
 }
@@ -325,6 +325,7 @@ void worker(chanend toCollect, chanend fromDist){
             // receive two extra lines
             for (int a=0; a< IMHT/8; a++){
                 fromDist :> image[0][a];
+                //printf("PREVIOUS BYTE: %u\n", image[0][a]);
             }
             for (int b=0; b< IMHT/8; b++){
                 fromDist :> image[IMWD/WORKERS + 1][b];
@@ -351,7 +352,10 @@ void worker(chanend toCollect, chanend fromDist){
 
                     }
                     toCollect <: byte;
-                    //printf("BYTE: %u\n", byte);
+                    /*if (i == 1){
+                        printf("BYTE: %u\n", byte);
+                    }*/
+
                     byte = 0x00;
                 }
             }
@@ -384,7 +388,7 @@ void collector(chanend fromWorker[WORKERS], chanend toDistributor){
                         fromWorker[i] :> val;
                         newImage[k + i*(IMHT/WORKERS) ][j] = val;
                         //printf("collected from worker %d count : %u \n", i,  val);
-                        //printf("- %u", val);
+                        //printf("COLLECTED VALUE- %u\n", val);
                         //printf("%d", count);
                     //}
                 }
@@ -642,13 +646,13 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 //--------------------------------------------------------------------------------------
 
               else if (collectorFlag == 3){
-                  for(int y = 0; y<IMHT; y++){
+                  /*for(int y = 0; y<IMHT; y++){
                      for(int x = 0; x<IMWD/8; x++){
                          for(int z = 0; z<8; z++){
                              c_out <: unpackBits(currentImage[y][x], z);
                          }
                      }
-                   }
+                   }*/
                   //printf("FLAG 3 COLLECTED");
                   //--------------------------------------------------------------------
                   // to do the pausing
@@ -685,22 +689,31 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 
                             }
                         }
+
+                        // printf("SENDING EXTRA LINES");
                         // send the two extra lines
                         for( int z = 0; z < IMWD/8; z++ ){
                             // prev workers' line
                             if ((i-1) == -1){
+                                // printf("extra -  %u\n", currentImage[IMHT-1][z]);
                               toWorker[i] <: currentImage[IMHT-1][z];
                             } else {
-                              toWorker[i] <: currentImage[IMHT/WORKERS+(i-1)*(IMHT/WORKERS)][z];
+                                // is this sending the line before without loop around
+                              toWorker[i] <: currentImage[(IMHT/WORKERS-1)+(i-1)*(IMHT/WORKERS)][z];
+                              // printf("extra no loop-  %u\n", currentImage[IMHT/WORKERS+(i-1)*(IMHT/WORKERS)][z]);
                             }
 
 
                         }
+                        // printf("SENDING NEXT EXTRA LINES");
                         for( int a = 0; a < IMWD/8; a++ ){
                             // next workers' line
+
                             if ((i+1) == WORKERS ){
+                                // printf("extra -  %u\n", currentImage[0][a]);
                                 toWorker[i] <: currentImage[0][a];
                             } else {
+                                // printf("extra -  %u\n", currentImage[(i+1)*(IMHT/WORKERS)][a]);
                                 toWorker[i] <: currentImage[(i+1)*(IMHT/WORKERS)][a];
                             }
                         }
@@ -857,13 +870,13 @@ par {
     }*/
     par{
         on tile[0]: worker(collect[0], workerChans[0]);
-        //on tile[1]: worker(collect[1], workerChans[1]);
-        /*on tile[1]: worker(collect[2], workerChans[2]);
+        on tile[1]: worker(collect[1], workerChans[1]);
+        on tile[1]: worker(collect[2], workerChans[2]);
         on tile[1]: worker(collect[3], workerChans[3]);
         on tile[1]: worker(collect[4], workerChans[4]);
         on tile[1]: worker(collect[5], workerChans[5]);
         on tile[1]: worker(collect[6], workerChans[6]);
-        on tile[1]: worker(collect[7], workerChans[7]);*/
+        on tile[1]: worker(collect[7], workerChans[7]);
     }
   }
 
