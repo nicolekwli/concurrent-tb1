@@ -6,10 +6,11 @@
 #include <stdio.h>
 #include "pgmIO.h"
 #include "../lib_i2c/api/i2c.h"
-//#include <errno.h>
+#include <timer.h>
+#include <string.h>
 
-#define  IMHT 256                  //image height
-#define  IMWD 256                  //image width
+#define  IMHT 16                  //image height
+#define  IMWD 16                  //image width
 
 typedef unsigned char uchar;      //using uchar as shorthand
 typedef unsigned short ushor;       //using ushor as shorthand
@@ -49,12 +50,11 @@ uchar unpackBits(uchar byte, int pos){
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
-// The Logic of the Game of Life Game Thing
+// Functions for the Game of Life logic
 //
 /////////////////////////////////////////////////////////////////////////////////////////
 // row, byte, pos in the byte
 uchar gameOfLifeLogic(uchar image[IMWD][IMHT/8], int i, int k, int j) {
-    // just fyi for me: it is array[row][[column]]
     int l_neighbours;
     uchar simplifiedImage[3][IMHT/8];
     int row = i;
@@ -109,8 +109,6 @@ uchar gameOfLifeLogic(uchar image[IMWD][IMHT/8], int i, int k, int j) {
             return unpackBits(image[i][k],j); //remains the same
         }
     }
-
-    //should return something here
     return 0; //this im not sure about
 }
 
@@ -130,12 +128,12 @@ int noOfLiveNeighbours(uchar image[3][IMHT/8], int i, int j) {
     if (left == -1){
         left = 7;
         if (leftBytePos == 0){
-            leftBytePos = IMHT/8 -1;
+            leftBytePos = IMHT/8 - 1;
         }
     }
     if (right == 8){
        right = 0;
-       if (rightBytePos == IMHT/8-1){
+       if (rightBytePos == IMHT/8 - 1){
            rightBytePos = 0;
        }
     }
@@ -262,7 +260,6 @@ void worker(chanend toCollect, chanend fromDist){
                         //else new_val = shiftLine & 0x01;
                         byte = packBits(new_val, j, byte);
 
-
                     }
                     toCollect <: byte;
                     //printf("byte is sent to collect\n");
@@ -274,7 +271,6 @@ void worker(chanend toCollect, chanend fromDist){
                  //}
         }
     }
-
 } //end of worker()
 
 // Collects data each and sends to output image in order
@@ -303,7 +299,6 @@ void collector(chanend fromWorker[8], chanend toDistributor){
                         //printf("- %u", val);
                         //printf("%d", count);
                     //}
-
                 }
                 rowCount++;
             }
@@ -334,6 +329,46 @@ void buttonListener(in port fromButton, chanend toDistributor) {
   }
 }
 
+//gets the time and sends it to distributor when asked
+void getTime(chanend toDistributor){
+    timer time;
+    int val;
+    int overflow = 0;
+    uint32_t currentTime = 0;
+    uint32_t newTime = 0;
+
+
+    //time :> curTime; //To get the current value of the timer counter
+
+
+    while(1){
+        [[ordered]]
+        select {
+            //consider when paused timer has to stop
+            // if paused add 0 to time
+
+            case time when timerafter(currentTime+100000) :> newTime:
+                if(newTime < currentTime){
+                    overflow++;
+                }
+                currentTime = newTime;
+                break;
+
+            case toDistributor :> val:
+                if (val == 3){
+                  //just returns a value when asked
+                  //adjust value to contain overflow
+                   time :> currentTime;
+                   toDistributor <: currentTime;
+                }
+                if (val == 2){ //if it is paused, do nothing just break
+                    break;
+                }
+                break;
+        }
+    }
+
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -391,7 +426,7 @@ void DataInStream(char infname[], chanend c_out)
 // Stores the current image
 // Send image to each worker
 // Also distributes lines to workers sequentially
-void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[8], chanend fromCollector, chanend fromButtonL, out port toLED)
+void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[8], chanend fromCollector, chanend fromButtonL, out port toLED, chanend fromTimer)
 {
  // uchar val;
  // uchar new_val=0xFF;
@@ -403,17 +438,20 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   int round = 1;
   int tilted = 0; //we use this to indicate pausing as well
   int pause = 0;
+ // int timerFlag = 0;
+  uint32_t startTime = 0, endTime = 0, timeElapsed = 0;
+  //uint32_t pauseStartTime = 0, pauseEndTime = 0, totalPauseTime = 0;
 
+ // timer t;
+
+  //------------------------------------------------------------------------------------------------------------
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
-  //printf( "Waiting for Board Tilt...\n" );
-  //fromAcc :> int value;
 
   //Starting up and wait for button press of the xCore-200 Explorer
   printf("Waiting for Button press...\n");
 
-  while (buttonInput != 14){
+  while (buttonInput != 14){ //exits the loop when buttonInput == 14
     fromButtonL :> buttonInput;
-    //exits the loop when buttonInput == 14
   }
 
   printf("Button Pressed\n");
@@ -426,6 +464,8 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     }
   }
   printf( "\nProcessing image DONE...\n" );
+
+  //---------------------------------------------------------------------------------------------------------------
 
   /*for (int d=0; d< 16; d++){
       for (int f=0; f< 2; f++){
@@ -442,20 +482,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
     * 3.get result from workers
     */
 
-  //FOR PAUSING: put this somewhere appropriate
-  // telling the workers that pause is 0
-  /*for(int i=0; i<4; i++){
-    toWorker[i] <: 0;
-  }*/
-
   while(1){
-      /*for (int d=0; d< 16; d++){
-            for (int f=0; f< 2; f++){
-                printf("line %u", currentImage[d][f]);
-            }
-            printf("\n");
-        }*/
-
       [[ordered]]
       select {
          case fromButtonL :> buttonInput:
@@ -463,40 +490,42 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                  printf("Current round is: %d \n", round);
                  toLED <: 2;
                  // displays the current image
+                 pause = 1;
                  for(int y = 0; y<IMHT; y++){
                    for(int x = 0; x<IMWD/8; x++){
                        for(int z = 0; z<8; z++){
                            c_out <: unpackBits(currentImage[y][x], z);
                        }
-
                    }
                  }
-                 toLED <: 0;
+                printf("\n Image has been exported %d \n", round);
+                toLED <: 0;
+                pause = 0;
                }
                else break;
              break;
+//---------------------------------------------------------------------------
 
          case fromAcc :> tilted:
-             if (tilted == 1) {
+             if (tilted == 1){
                  printf("Board Tilted... \n");
 
+
                  pause = 1;
+                // timerFlag = 0; //timer should stop
                  toLED <: 8; //red
                  //printf("Paused. \n");
 
-
-                 printf("------------STATUS REPORT------------\n");
+                 printf("-------------STATUS REPORT-------------\n");
                  printf("Rounds completed: %d\n", round);
                  printf("Live cells: %d\n", totalLiveCells(currentImage));
-                 //printf("Time elapsed: %d\n", time);
-                 printf("-------------------------------------\n");
-                 //delay_milliseconds(200);
+                 printf("Time elapsed: %d milliseconds\n", timeElapsed/100000);
+                // printf("Pause Time: %d milliseconds\n", totalPauseTime/100000);
+                 printf("---------------------------------------\n");
                  while (pause) {
                      fromAcc <: 5;
                      break;
-                    // toLED <: 8; //red
                  }
-
              }
              else if (tilted == 0){
                  printf("Unpaused. \n");
@@ -504,10 +533,14 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                  pause = 0;
              }
              break;
+//---------------------------------------------------------------------------------
 
           case fromCollector :> collectorFlag:
-              //put flashing LED here
-              toLED <: ((round)%2);
+              // flashing LED
+              toLED <: round % 2;
+
+              fromTimer <: 3; //telling getTimer() to send a time
+              fromTimer :> startTime; //get the start time from the timer function
 
               if (collectorFlag == 2) {
                   //printf("\n Processing round %d... \n", round);
@@ -520,23 +553,32 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                       }
                   }
                }
+//--------------------------------------------------------------------------------------
+
               else if (collectorFlag == 3){
                   //printf("FLAG 3 COLLECTED");
+                  //--------------------------------------------------------------------
                   // to do the pausing
                       if (pause == 1){ //paused
                           // add worker number global here
                           for(int i=0; i<8; i++){
                               toWorker[i] <: 8;
+                              fromTimer <: 2;
+                              //fromTimer :> pauseStartTime;
+                              //send something to pause timer
                           }
                       }
 
                       if (pause == 0){ //resumed
                           for(int i=0; i<8; i++){
                               toWorker[i] <: 9;
+                              fromTimer <: 2;
+                              //fromTimer :> pauseEndTime;
+                              //send something to start timer
                           }
                       }
 
-
+                  //----------------------------------------------------------------------
                   // split image and send to workers
                   // number of rows
                   for( int y = 0; y < IMHT; y++ ) {   //go through all lines
@@ -547,9 +589,9 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                           toWorker[2] <: currentImage[y][x];
                           toWorker[3] <: currentImage[y][x];
                           toWorker[4] <: currentImage[y][x];
-                        toWorker[5] <: currentImage[y][x];
-                        toWorker[6] <: currentImage[y][x];
-                        toWorker[7] <: currentImage[y][x];
+                          toWorker[5] <: currentImage[y][x];
+                          toWorker[6] <: currentImage[y][x];
+                          toWorker[7] <: currentImage[y][x];
                       }
                   }
                   // printf("sending image done \n ");
@@ -557,7 +599,6 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   for(int k=0; k<IMWD; k++){
                       // send row number of line
                       // toWorker[k%4] <: all_lines[k];
-
                       toWorker[k%8] <: k;
                       // printf("sent line %d to worker %d\n", k, k%8);
                       //toWorker[k%4] :> val;
@@ -566,9 +607,18 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                   // printf("SIGNAL SENT 2 TO COLLECTOR\n");
                   round++;
                   fromAcc <: -5; //sending any value to say that its time to check for a tilt
+                  //send anything to timer to say that its time to start the timer
               }
+
+              fromTimer <: 3;
+              fromTimer :> endTime;
+              timeElapsed += endTime - startTime;
+              //totalPauseTime = 0;
+              //totalPauseTime = pauseEndTime - pauseStartTime;
+              startTime = endTime;
+
               break;
-      }
+      } //end of select
   } //end of while loop
  // printf( "\nOne processing round completed... \n" );
 }
@@ -601,17 +651,16 @@ void DataOutStream(char outfname[], chanend c_in)
               _writeoutline( line, IMWD );
               //printf("Y IS: %d \n", y);
               printf( "\n");
-              //printf( " DataOutStream: Line written...\n" );
+             // printf( " DataOutStream: Line written...\n" );
               }
               printf("all lines written");
 
               //Close the PGM image
               _closeoutpgm();
-              printf( "\nDataOutStream: Done...\n" );
+      printf( "\nDataOutStream: Done...\n" );
   }
   return;
 }
-
 
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -654,7 +703,7 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
         //toDist <: 1;
       }
     }
-    // return soething to dist to make it continue
+    // return something to dist to make it continue
     else {
         if (x < 5){
             tilted = 0;
@@ -667,9 +716,7 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
             break;
         break;
     }
-
-
-  }
+  } //end of while loop
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -679,23 +726,22 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
 /////////////////////////////////////////////////////////////////////////////////////////
 int main(void) {
 
-i2c_master_if i2c[1];               //interface to orientation
-
-//char infname[] = "test.pgm";     //put your input image path here
-//char outfname[] = "testout.pgm"; //put your output image path here
+i2c_master_if i2c[1];  //interface to orientation
 chan c_inIO, c_outIO, accToD;
 chan workerChans[8];
 chan collect[8];
 chan collectorToD;
 chan buttonToD;
+chan timerToD;
 
 par {
+    on tile[0]: getTime(timerToD);
     on tile[0]: i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
     on tile[0]: orientation(i2c[0], accToD);        //client thread reading orientation data
     on tile[0]: buttonListener(buttons, buttonToD);
-    on tile[0]: DataInStream("256x256.pgm", c_inIO);          //thread to read in a PGM image
-    on tile[0]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
-    on tile[0]: distributor(c_inIO, c_outIO, accToD, workerChans, collectorToD, buttonToD, leds); //thread to coordinate work on image
+    on tile[0]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
+    on tile[0]: DataOutStream("testtest.pgm", c_outIO);       //thread to write out a PGM image
+    on tile[0]: distributor(c_inIO, c_outIO, accToD, workerChans, collectorToD, buttonToD, leds, timerToD); //thread to coordinate work on image
     on tile[0]: collector(collect, collectorToD);
 
     // for loop to create workers
@@ -713,8 +759,6 @@ par {
         on tile[1]: worker(collect[7], workerChans[7]);
     }
   }
-
-// SW1 is 14 and SW2 is 13
 
   return 0;
 }
