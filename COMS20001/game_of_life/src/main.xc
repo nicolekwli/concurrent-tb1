@@ -8,6 +8,7 @@
 #include "../lib_i2c/api/i2c.h"
 #include <timer.h>
 #include <string.h>
+#include <assert.h>
 
 #define  IMHT 16                  //image height
 #define  IMWD 16                  //image width
@@ -39,14 +40,26 @@ uchar gameOfLifeLogic(char image[IMWD/8][IMHT/8], int i, int k, int j);
 
 uchar packBits(uchar newBit, int position, uchar returnByte){
     uchar val = newBit & 0x01;
-    returnByte |= (val << (8-position));
+    returnByte |= (val << (7-position));
     return returnByte;
 }
 
 uchar unpackBits(uchar byte, int pos){
-    uchar bit = (byte >> (8-pos)) & 0x01;
+    uchar bit = (byte >> (7-pos)) & 0x01;
     return bit;
 }
+
+void tests() {
+    assert(packBits(0x00, 0, 0x00) == 0x00);
+    assert(packBits(0x01, 0, 0x00) == 0x80);
+    assert(packBits(0xFF, 3, 0x00) == 0x10);
+
+
+    assert(unpackBits(0xE6, 0) == 1);
+    assert(unpackBits(0xE6, 1) == 1);
+    assert(unpackBits(0xE6, 4) == 0);
+}
+
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -57,32 +70,33 @@ uchar unpackBits(uchar byte, int pos){
 uchar gameOfLifeLogic(uchar image[IMWD/8][IMHT/8], int i, int k, int j) {
     int l_neighbours;
     uchar simplifiedImage[3][IMHT/8];
+    int prevRow = i-1;
     int row = i;
+    int nextRow = i+1;
+
+    if (prevRow == -1){
+        prevRow = (IMHT/8)-1;
+    }
+
+    if (nextRow == IMHT/8){
+        nextRow = 0;
+    }
 
     // get the three lines
     // this needs to deal with loop arounds
     for (int x = 0; x<3; x++){
-        // if row is the first, then need to get the last row for the 3 lines
-        if ((row-1) < 0){
-            row = (IMHT/8)-1;
-        }
-        // if 3rd row is outof bounds, then get the first row
-        else if ((row+1) == IMHT/8){
-            row = 0;
-        }
         for (int y=0; y<IMHT/8; y++){
-
-            simplifiedImage[x][y]=image[row][y];
-
-
+            if (x == 0){
+                simplifiedImage[x][y]=image[prevRow][y];
+            }
+            else if (x == 2){
+                simplifiedImage[x][y]=image[row][y];
+            }
+            else {
+                simplifiedImage[x][y]=image[nextRow][y];
+            }
         }
-        // if its the last row, row becomes 0 for the next
-        if (row == (IMHT/8-1)){
-           row = i;
-        }
-        row++;
     }
-    // save the new image with the rows before and after
     l_neighbours = noOfLiveNeighbours(simplifiedImage, k , j);
     //cell is live
     if (unpackBits(image[i][k],j) == 1) {
@@ -162,7 +176,6 @@ int noOfLiveNeighbours(uchar image[3][IMHT/8], int i, int j) {
     if (unpackBits(image[2][leftBytePos], left)==1)  //bottom left
         live_n++;
 
-  // printf("live neighbours %d\n", live_n);
   return live_n;
 }
 
@@ -432,6 +445,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
   //uint32_t pauseStartTime = 0, pauseEndTime = 0, totalPauseTime = 0;
 
  // timer t;
+ tests();
 
   //------------------------------------------------------------------------------------------------------------
   printf( "ProcessImage: Start, size = %dx%d\n", IMHT, IMWD );
@@ -508,7 +522,7 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                  }
              }
              else if (tilted == 0){
-                 printf("Unpaused. \n");
+                 //printf("Unpaused. \n");
                  toLED <: 0;
                  pause = 0;
              }
@@ -536,7 +550,14 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 //--------------------------------------------------------------------------------------
 
               else if (collectorFlag == 3){
-                  printf("FLAG 3 COLLECTED");
+                  for(int y = 0; y<IMHT; y++){
+                                     for(int x = 0; x<IMWD/8; x++){
+                                         for(int z = 0; z<8; z++){
+                                             c_out <: unpackBits(currentImage[y][x], z);
+                                         }
+                                     }
+                                   }
+                  //printf("FLAG 3 COLLECTED");
                   //--------------------------------------------------------------------
                   // to do the pausing
                       if (pause == 1){ //paused
@@ -696,6 +717,8 @@ void orientation( client interface i2c_master_if i2c, chanend toDist) {
     }
   } //end of while loop
 }
+
+
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
