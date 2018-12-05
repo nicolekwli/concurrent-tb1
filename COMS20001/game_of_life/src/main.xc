@@ -49,37 +49,6 @@ uchar unpackBits(uchar byte, int pos){
     return bit;
 }
 
-void tests() {
-    assert(packBits(0x00, 0, 0x00) == 0x00);
-    assert(packBits(0x01, 0, 0x00) == 0x80);
-    assert(packBits(0xFF, 3, 0x00) == 0x10);
-
-    assert(unpackBits(0xE6, 0) == 1);
-    assert(unpackBits(0xE6, 1) == 1);
-    assert(unpackBits(0xE6, 4) == 0);
-
-    //test game of life logic
-
-    //testing no. of live neighbours
-    // test matrix is:
-    // x - -
-    // - x' -
-    // - -
-    uchar test[3][4];
-    //test[0][0] = 1;
-    for (int p=0; p<3; p++){ //what even is this i can barely read what im writing much sleep
-        for(int q=0; q<2; q++){
-            if((p == 0)&&(q==0))    test[p][q] = 1;
-            if((p == 0)&&(q==1))    test[p][q] = 1;
-        }
-    }
-    assert(noOfLiveNeighbours(uchar image[3][IMHT/8], i, j) == );
-    assert(noOfLiveNeighbours(uchar image[3][IMHT/8], i, j) == );
-
-    //test total no of live cells
-    assert(totalLiveCells(uchar image[IMWD][IMHT/8])== );
-
-}
 
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -211,6 +180,39 @@ int totalLiveCells(uchar image[IMWD][IMHT/8]){
         }
     }
     return live;
+}
+
+void tests() {
+    assert(packBits(0x00, 0, 0x00) == 0x00);
+    assert(packBits(0x01, 0, 0x00) == 0x80);
+    assert(packBits(0xFF, 3, 0x00) == 0x10);
+
+    assert(unpackBits(0xE6, 0) == 1);
+    assert(unpackBits(0xE6, 1) == 1);
+    assert(unpackBits(0xE6, 4) == 0);
+
+    //test game of life logic
+
+    //testing no. of live neighbours
+    // test matrix is:
+    // x - -
+    // - x' -
+    // - -
+    uchar test[3][2];
+    //test[0][0] = 1;
+    for (int p=0; p<3; p++){
+        for(int q=0; q<2; q++){
+            if((p == 0)&&(q==0))    test[p][q] = 1;
+            else test[p][q] = 0;
+            //if((p == 09)&&(q==1))    test[p][q] = 1;
+        }
+    }
+    assert(noOfLiveNeighbours(test, 0, 7) == 1);
+    //assert(noOfLiveNeighbours(uchar image[3][IMHT/8], i, j) == );
+
+    //test total no of live cells
+    // assert(totalLiveCells(uchar image[IMWD][IMHT/8])== );
+
 }
 
 
