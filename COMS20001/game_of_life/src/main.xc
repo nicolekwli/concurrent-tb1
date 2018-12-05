@@ -10,8 +10,8 @@
 #include <string.h>
 #include <assert.h>
 
-#define  IMHT 512               //image height
-#define  IMWD 512                 //image width
+#define  IMHT 16               //image height
+#define  IMWD 16                 //image width
 #define WORKERS 8
 
 typedef unsigned char uchar;      //using uchar as shorthand
@@ -464,12 +464,17 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
                if(buttonInput == 13){
                  printf("Current round is: %d \n", round);
                  toLED <: 2;
-                 // displays the current image
+                 c_out <: 2;
                  pause = 1;
                  for(int y = 0; y<IMHT; y++){
                    for(int x = 0; x<IMWD/8; x++){
                        for(int z = 0; z<8; z++){
-                           c_out <: unpackBits(currentImage[y][x], z);
+                           /*if (unpackBits(currentImage[y][x], z) == 0x01){
+                               c_out <: 0xFF;
+                           } else{
+                               c_out <: unpackBits(currentImage[y][x], z);
+                           }*/
+                           c_out <: unpackBits(currentImage[y][x], z) ;
                        }
                    }
                  }
@@ -618,10 +623,12 @@ void distributor(chanend c_in, chanend c_out, chanend fromAcc, chanend toWorker[
 void DataOutStream(char outfname[], chanend c_in)
 {
   int res;
+  int sig;
   uchar line[ IMWD ];
 
   //Open PGM file
   while (1){
+      c_in :> sig;
       printf( "DataOutStream: Start...\n" );
               res = _openoutpgm( outfname, IMWD, IMHT );
               if( res ) {
@@ -632,6 +639,9 @@ void DataOutStream(char outfname[], chanend c_in)
               for( int y = 0; y < IMHT; y++ ) {
               for( int x = 0; x < IMWD; x++ ) {
                 c_in :> line[ x ];
+                if (line[x] == 0x01){
+                    line[x] = 0xFF;
+                }
                  printf( "-%4.1d ", line[ x ] ); //show image values
               }
               _writeoutline( line, IMWD );
@@ -726,8 +736,8 @@ par {
     on tile[0]: i2c_master(i2c, 1, p_scl, p_sda, 10);   //server thread providing orientation data
     on tile[0]: orientation(i2c[0], accToD);        //client thread reading orientation data
     on tile[0]: buttonListener(buttons, buttonToD);
-    on tile[0]: DataInStream("512x512.pgm", c_inIO);          //thread to read in a PGM image
-    on tile[0]: DataOutStream("testtest.pgm", c_outIO);       //thread to write out a PGM image
+    on tile[0]: DataInStream("test.pgm", c_inIO);          //thread to read in a PGM image
+    on tile[0]: DataOutStream("testout.pgm", c_outIO);       //thread to write out a PGM image
     on tile[0]: distributor(c_inIO, c_outIO, accToD, workerChans, collectorToD, buttonToD, leds, timerToD); //thread to coordinate work on image
     on tile[0]: collector(collect, collectorToD);
 
